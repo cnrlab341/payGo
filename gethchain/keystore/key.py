@@ -1,0 +1,36 @@
+key_path = []
+key_path.append("../gethchain/keystore/UTC--2019-07-30T05-05-11.902129651Z--00cf3b5ebfcf7b9264d31e943fabe5c171e97345")
+key_path.append("../gethchain/keystore/UTC--2019-07-30T05-05-14.544077240Z--e5faebdcbed87c0475d09516db976a15767f1be3")
+key_path.append("../gethchain/keystore/UTC--2019-07-30T05-05-16.905471930Z--68b890d7c0053272e7307cad78a4ddd928e12f65")
+key_path.append("../gethchain/keystore/UTC--2019-07-30T05-05-19.363648099Z--f44531909932f57e642b2387c52cb5c70af5e9ea")
+key_path.append("../gethchain/keystore/UTC--2019-09-15T08-43-23.710914767Z--d5f47f907e04f04340bcee3f34de2532612c4a7b")
+key_path.append("../gethchain/keystore/UTC--2019-09-15T08-45-13.451186196Z--a1e9a8dfe5e615db4e0a9b7dc1b288708b041c65")
+key_path.append("../gethchain/keystore/UTC--2019-09-15T08-45-16.956709932Z--6cfdca733802a4854495e8d21108d01176bf6b6e")
+key_path.append("../gethchain/keystore/UTC--2019-09-15T08-45-20.214726977Z--2edb62e2b396cca80af94491d289b13a18ca0160")
+key_path.append("../gethchain/keystore/UTC--2019-09-15T08-45-25.490175268Z--adbb9f951bd553060315850228e12f588064be20")
+key_path.append("../gethchain/keystore/UTC--2019-09-15T08-45-28.340159769Z--88074c32a093f12b03a364c32e80e33b836e6872")
+key_path.append("../gethchain/keystore/UTC--2019-09-15T08-45-31.160561963Z--0c35741099dc8a32675fb9be93093e546311db2d")
+key_path.append("../gethchain/keystore/UTC--2019-09-15T08-45-33.911558106Z--a54386aae71142e90437dcb7fcb0ab21ef97927f")
+key_path.append("../gethchain/keystore/UTC--2019-09-15T08-45-36.537417504Z--36b014df241555e63fb8a481b62e35549262d720")
+key_path.append("../gethchain/keystore/UTC--2019-09-15T08-45-39.133688236Z--b7a467b0cf530663d1072835c48c08a0d036bdac")
+key_path.append("../gethchain/keystore/UTC--2019-09-15T08-45-41.736208242Z--53bd2cabeab4f4962a44226e5196926e8c24bcc4")
+key_path.append("../gethchain/keystore/UTC--2019-11-11T06-36-46.558832824Z--cc78b3f582bd61c4090f061e50618abe9c2bc37e")
+key_path.append("../gethchain/keystore/UTC--2019-11-11T06-37-16.342911343Z--f87df2317ef8796e1c9d8c20e37974d433244b6d")
+key_path.append("../gethchain/keystore/UTC--2019-11-11T06-38-06.640779770Z--e8249d199024c45154e429a104fd78aeb6c5241b")
+key_path.append("../gethchain/keystore/UTC--2019-11-11T06-38-09.681096131Z--c0739ca49a6f17a37b45c3190c30aaafb93e50ed")
+key_path.append("../gethchain/keystore/UTC--2019-11-11T06-38-26.340999320Z--520aed6fe67f8d4d2873247f52c0e8757ac20de3")
+key_path.append("../gethchain/keystore/UTC--2019-11-11T06-38-29.685428232Z--e6c9e76e083ca2c02284f965fd0453cfdf84bdf1")
+key_path.append("../gethchain/keystore/UTC--2019-11-11T06-38-33.126736981Z--a1346c94ea793ee29eb0692c92fabbaea2316d9d")
+key_path.append("../gethchain/keystore/UTC--2019-11-11T06-38-36.152968507Z--35bb94eb7ddce99debf7e482fb9f30203ba32dc0")
+key_path.append("../gethchain/keystore/UTC--2019-11-11T06-38-38.749848383Z--538f04b30ae1861969ba2649bc0107b3acf9c1cf")
+key_path.append("../gethchain/keystore/UTC--2019-11-11T06-38-51.273156522Z--5492cfc78c64e4f010a44895a6ba137c0ff787a9")
+key_path.append("../gethchain/keystore/UTC--2019-11-11T06-38-53.322289429Z--dfd32c06d21fd0b15936dac5d9d8eeb31765a482")
+key_path.append("../gethchain/keystore/UTC--2019-11-11T06-38-55.214323367Z--1da1c71d05eb5cc996dfbc5826f4b90a2f872c85")
+key_path.append("../gethchain/keystore/UTC--2019-11-11T06-38-57.099411027Z--a77d36ba81ce6871738b245671cda5a2c0c05014")
+key_path.append("../gethchain/keystore/UTC--2019-11-11T06-38-59.030863793Z--3c40c770edad6fd09b15a89b0b8f1d0312f49d1b")
+key_path.append("../gethchain/keystore/UTC--2019-11-11T06-39-00.922788922Z--2228b1786c2557ebc74c5ef411d7ca66a84410a6")
+
+key_passphrase = ["" for _ in range(len(key_path))]
+
+def get_keys() :
+    return key_path, key_passphrase

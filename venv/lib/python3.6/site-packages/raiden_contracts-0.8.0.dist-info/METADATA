@@ -1,0 +1,26 @@
+Metadata-Version: 2.1
+Name: raiden-contracts
+Version: 0.8.0
+Summary: Raiden contracts library and utilities
+Home-page: https://github.com/raiden-network/raiden-contracts/
+Author: Brainbot Labs Est.
+Author-email: contact@brainbot.li
+License: MIT
+Keywords: raiden ethereum blockchain
+Platform: UNKNOWN
+Classifier: Development Status :: 3 - Alpha
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Natural Language :: English
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Requires-Dist: click
+Requires-Dist: rlp (>=1.0.0)
+Requires-Dist: coincurve (<9.0,>=8.0.0)
+Requires-Dist: web3 (>=4.4.1)
+Requires-Dist: py-solc (>=3.0.0)
+
+UNKNOWN
+
+

@@ -1,0 +1,3 @@
+[console_scripts]
+deploy = raiden_contracts.deploy.__main__:main
+
