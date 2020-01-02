@@ -5,17 +5,18 @@ from settingParameter import on_chain_access_cost
 from structure import contractTable, payer_result
 from raiden.utils import sha3
 from settingParameter import alpha, contract_meaningful_incentive_constant, contract_meaningful_delay_constant, \
-    time_meaningful_constant, theta
+    time_meaningful_constant, theta, min_probability, payGo_contract_meaningful_delay_constant
 from contract import register_secret, close_channel, update_NonClosingBalanceProof, settle_channel, unlock
 from raiden.utils.signing import pack_data
 
 from openpyxl import Workbook
-import os, math, time
+import os, math, time, random
 # import threading
 
 
+
 class Node:
-    def __init__(self, w3, account, name, line, result,lock):
+    def __init__(self, w3, account, name, line, result,lock, F1_RTT, F2_RTT):
         self.w3 = w3
         self.name = name
         self.line = line
@@ -28,7 +29,7 @@ class Node:
         self.contract_table = {}
         self.experiment_result = result
         self.probability = {}
-        self.RTT = RTT()
+        self.RTT = {"A":F1_RTT, "D":F2_RTT}
         self.lock = lock
 
     def get_channel_probability(self):
@@ -56,13 +57,22 @@ class Node:
 
     def init_contract_propose(self, round, initiator, target, amount, secret, start_time, Omega, Omega_prime, payment_state, start):
         cr = '0x' + sha3(secret).hex()
+
+        if round >= 1 :
+            # print("[{}, {}] proposal_state : {}".format(round, initiator.name, self.experiment_result.proposal_complete[round-2][0]))
+            if self.experiment_result.proposal_complete[round-1][0] != "complete" :
+                temp = start_time
+                # print('Good', initiator.name)
+                start_time = self.experiment_result.proposal_complete[round-1][1]
+                self.experiment_result.proposal_complete[round] = self.experiment_result.proposal_complete[round-1]
+                # if initiator.name == "A" :
+                #     print("{} not proposal complte, start_time {}->{}".format(round-1, temp, start_time))
+
         channel_probability = self.get_channel_probability()
         bundle = contract_bundle(initiator.address).execute(channel_probability, Omega, Omega_prime)
         M = []
-        success = 0
         for recipient in initiator.partner.keys() :
-            if self.partner[recipient].check_balance(amount, self.RTT.get_accumulate_time()):
-                success +=1
+            if self.partner[recipient].check_balance(amount, self.RTT[initiator.name].get_accumulate_time()):
                 message = contractPropose(cr, initiator, self, recipient, target, amount, bundle)
 
                 if not cr in self.contract_table.keys():
@@ -77,11 +87,6 @@ class Node:
                 self.contract_table[cr].contract_bundle[recipient] = bundle
 
                 M.append(message)
-
-        if success == 0 :
-            print("initiaotr error", self.name)
-            M = self.init_contract_propose(round, initiator, target, amount, secret, start_time, payment_state, start)
-
         return M
 
     def send_contract_propose(self, cr, initiator, partner, target, amount, bundle):
@@ -110,14 +115,12 @@ class Node:
                     if not recipient in self.contract_table[message.cr].check_propose :
                         M.append(self.send_target_contract_select(message.cr, recipient, 0, 0, 0, 0))
             else:
-                success = 0
                 create_bundle = {}
                 for partner in self.partner.keys():
                     possibility = self.contract_select(message.cr, partner, message.amount, message.producer,
                                                        self.contract_table[message.cr].receive_contract_bundle, False ,"propose")
                     if partner.line != message.producer.line and possibility != -1 and\
                        not partner in self.contract_table[message.cr].check_propose :
-                        success +=1
                         channel_probability = self.get_channel_probability()
                         if partner == message.target:
                             create_bundle = {"Incentive": 1, "Delay": 5}
@@ -125,9 +128,6 @@ class Node:
                             create_bundle = contract_bundle(self.address).execute(channel_probability, Omega, Omega_prime)
                         M.append(self.send_contract_propose(message.cr, message.initiator, partner, message.target,
                                                             message.amount, create_bundle))
-                if success == 0 :
-                    # print("{} propose X {}".format(message.initiator.name, self.name))
-                    M.append(message)
         return M
 
     def send_target_contract_select(self, cr, recipient, incentive, delay, additional_incentive, additional_delay):
@@ -139,6 +139,8 @@ class Node:
 
         additional_incentive += incentive
         additional_delay += delay
+        self.contract_table[cr].selected_contract = selected_incentive, selected_delay
+        self.contract_table[cr].additional_contract = additional_incentive, additional_delay
         new_time = time.time()
         message = contractSelect(cr, table.initiator, self, recipient, table.target,
                                  selected_incentive, selected_delay, 0, additional_incentive,
@@ -165,7 +167,9 @@ class Node:
             selected_delay = int(round(table.receive_contract_bundle[producer]["Delay"][length - 1]))
 
         if selected_incentive >= on_chain_access_cost:
-            print("incentive 초과 : {}, selected_index : {}, bundle : {}".format(selected_incentive, selected_index, table.receive_contract_bundle[producer]["Incentive"]))
+            print("incentive 초과 : {}, selected_index : {}, bundle : {}".format(selected_incentive, selected_index,
+                                                                               table.receive_contract_bundle[producer][
+                                                                                   "Incentive"]))
             message = fail("onchainCostExcess")
         else:
             additional_incentive += incentive
@@ -183,20 +187,21 @@ class Node:
         index = -1
         if already_section :
             delay = self.contract_table[cr].aready_reservation_delay
-            if self.partner[selected_consumer].check_balance(0, self.RTT.get_accumulate_time()):
+            if delay == 0 :
                 index = len(contract_bundle[producer]["Delay"]) - 1
             else :
                 for i in range(len(contract_bundle[producer]["Delay"]) - 1, -1, -1):
                     # delay * 5 -> 수정 가능
-                    if delay <= contract_bundle[producer]["Delay"][i] / contract_meaningful_delay_constant:
+                    if delay <= contract_bundle[producer]["Delay"][i] / payGo_contract_meaningful_delay_constant:
                         index = i
                         break
             return index
-            
-        
-        if self.partner[selected_consumer].check_balance(amount, self.RTT.get_accumulate_time()):
+
+
+        if self.partner[selected_consumer].check_balance(amount, self.RTT[self.contract_table[cr].initiator.name].get_accumulate_time()):
             index = len(contract_bundle[producer]["Delay"]) - 1
             if type == "selection" and not already_section:
+                self.contract_table[cr].aready_reservation_delay = 0
                 self.partner[selected_consumer].set_wait_confirm(cr, amount, time.time())
 
         else:
@@ -215,24 +220,23 @@ class Node:
                         print(
                             "[error 2] item : {}, pending_payment_bundle : {}".format(item, pending_payment_bundle))
                         continue
-                    new_delay = (pending_payment[1] / contract_meaningful_delay_constant) - (
+                    new_delay = (pending_payment[1] / payGo_contract_meaningful_delay_constant) - (
                                 current_time - pending_payment[2]) / time_meaningful_constant
 
                     if new_delay < 0:
                         continue
 
-                    delay += new_delay
+                    delay = delay + new_delay
                     total_amount -= pending_payment[0]
-                    if total_amount <= 0:
-                        total_amount = 0
-                        success = True
+                    # if total_amount <= 0:
+                    #     total_amount = 0
                     # print("AAA")
 
-                    if self.partner[selected_consumer].check_balance(total_amount,self.RTT.get_accumulate_time()):
+                    if self.partner[selected_consumer].check_balance(total_amount,self.RTT[self.contract_table[cr].initiator.name].get_accumulate_time()):
                         # print("BBB")
                         for i in range(len(contract_bundle[producer]["Delay"]) - 1, -1, -1):
                             # delay * 5 -> 수정 가능
-                            if delay <= contract_bundle[producer]["Delay"][i] / contract_meaningful_delay_constant:
+                            if delay <= contract_bundle[producer]["Delay"][i] / payGo_contract_meaningful_delay_constant:
                                 index = i
                                 success = True
                                 if type == "selection" and not already_section:
@@ -296,7 +300,6 @@ class Node:
             table.temp_consumer = temp_consumer
 
             if len(temp_consumer) == 0:
-                M.append(message)
                 # print("[{}] {} initiator channel bankrupt".format(r, self.name))
                 return M
 
@@ -314,7 +317,7 @@ class Node:
 
         if message.consumer != message.target:
             probability = self.get_channel_probability()
-            if probability[0] >= 1.8 :
+            if probability[0] >= min_probability :
                 for i in table.temp_selected_index.values() :
                     index = theta - len(self.contract_table[message.cr].contract_bundle[message.consumer]["Delay"]) + i
                     probability[index] += 0.1
@@ -333,8 +336,8 @@ class Node:
                     self.lock.release()
 
         amount = self.contract_table[message.cr].amount + selected_contract[0] + additional_contract[0]
-
         if self == message.initiator:
+            self.experiment_result.proposal_complete[r][0] = "complete"
             self.partner[selected_consumer].set_reserve_payment(message.cr, amount)
             # self.partner[selected_consumer].update_average_capacity(-amount)
             new_time = time.time()
@@ -345,7 +348,6 @@ class Node:
             M.append(self.send_secret(message.cr, message.initiator, message.target))
             M.append(self.send_contract_confirm(message.cr, selected_consumer, selected_contract[0] ,selected_contract[1]))
         else:
-            sucess = 0
             aready_reservation = False
             for recipient in self.contract_table[message.cr].receive_contract_bundle.keys():
                 selected_index = self.contract_select(message.cr, selected_consumer, amount,
@@ -358,7 +360,7 @@ class Node:
                     if not aready_reservation :
                         aready_reservation = True
                         self.contract_table[message.cr].selection_RTT_start = new_time
-                        temp2 = {self.name: self.partner[selected_consumer].test_get_balance(self.RTT.get_accumulate_time())}
+                        temp2 = {self.name: self.partner[selected_consumer].test_get_balance(self.RTT[message.initiator.name].get_accumulate_time())}
                         temp3 = {self.name: table.receive_contract_bundle[recipient]["Delay"][selected_index] / contract_meaningful_delay_constant}
                         if not r in message.initiator.experiment_result.balance :
                             message.initiator.experiment_result.balance[r] = {}
@@ -366,28 +368,19 @@ class Node:
 
                         message.initiator.experiment_result.balance[r].update(temp2)
                         message.initiator.experiment_result.selected_contract[r].update(temp3)
-
-                        temp = {self.name: self.partner[selected_consumer].get_wait_confirm_count()}
-                        if not r in message.initiator.experiment_result.pending_queue:
-                            message.initiator.experiment_result.pending_queue[r] = {}
-                        message.initiator.experiment_result.pending_queue[r].update(temp)
                         # if self.partner[selected_consumer].get_wait_confirm_count() >= 2:
                             # print("pending : ", self.partner[selected_consumer].get_wait_confirm_count())
 
                         # print("[{}, {}] probility : {}".format(message.initiator.name, self.name, self.get_channel_probability()))
                         # print("[{}, {}] contract : {}".format(message.initiator.name, self.name, table.receive_contract_bundle[recipient]))
-
-                    sucess +=1
                     M.append(self.send_contract_select(message.cr, recipient, message.consumer, selected_contract[0],
                                                        selected_contract[1], additional_contract[0],
                                                        additional_contract[1], selected_index, message.path,
                                                        message.propose_endTime))
-                    # print("[{}. {}] select {}".format(message.initiator, r, selected_index))
-            if sucess == 0:
-                M.append(message)
+                    # print("[{}. {}] {} select {}".format(message.initiator.name, r, self.name, selected_index))
 
         return M
-            
+
     def contract_choice_short_pass(self, table):
         select = 10000000000  # infinite value
         selected_consumer = ""
@@ -400,25 +393,29 @@ class Node:
 
         return selected_consumer
 
-
     def contract_choice_Maxium_U(self, table, Omega):
         utility = -1000000  # infinite value
-        selected_consumer = ""
+        selected_consumer = []
 
         for i in range(len(table.temp_consumer)):
             selected_contract = table.temp_selected_contract[table.temp_consumer[i]]
-            temp = contract_bundle(self.address).get_producer_utility((selected_contract[0]) / contract_meaningful_incentive_constant,
-                                                                    (selected_contract[1]) / contract_meaningful_delay_constant, Omega)
-
+            temp = contract_bundle(self.address).get_producer_utility(
+                (selected_contract[0]) / contract_meaningful_incentive_constant,
+                (selected_contract[1]) / contract_meaningful_delay_constant, Omega)
             # print("{} incentive : ({},{}), delay : ({},{}) utility : {}".format(
             #     i,selected_contract[0] / contract_meaningful_incentive_constant , additional_contract[0] / contract_meaningful_incentive_constant,
             #     selected_contract[1] / contract_meaningful_delay_constant , additional_contract[1] / contract_meaningful_delay_constant, temp))
             if temp > utility:
                 utility = temp
-                selected_consumer = table.temp_consumer[i]
+                selected_consumer = [table.temp_consumer[i]]
+            elif temp == utility:
+                selected_consumer.append(table.temp_consumer[i])
+
+        random.shuffle(selected_consumer)
+
         # print("choice utility :", utility)
         # print("choice node :", selected_consumer.name)
-        return selected_consumer
+        return selected_consumer[0]
 
 
     def send_contract_confirm(self, cr, selected_consumer, selected_incentive, selected_delay):
@@ -476,7 +473,7 @@ class Node:
                                                 self.contract_table[message.cr].selected_contract[1]))
 
 
-        self.RTT.update_PTT(self.name, time.time() - self.contract_table[message.cr].selection_RTT_start)
+        self.RTT[self.contract_table[message.cr].initiator.name].update_PTT(self.name, time.time() - self.contract_table[message.cr].selection_RTT_start)
 
         return M
 
@@ -498,12 +495,12 @@ class Node:
         aux_delay = []
 
         if selected_index <= 0:
-            for i in range(11) :
+            for i in range(18) :
                 aux_incentive.append(result_incentive)
                 aux_delay.append(result_delay)
         else:
             index = selected_index
-            for i in range(11):
+            for i in range(18):
                 if index == 0:
                     aux_incentive.append(int(round(table.contract_bundle[recipient]["Incentive"][index][0]) +
                                         table.additional_contract[0]))
@@ -518,9 +515,8 @@ class Node:
                 index -= 1
         # print("{} : selected : {}".format(self.name, receive_selected_contract))
         # print("{} : aux : {}".format(self.name, receive_aux_contract))
-
         new_time = time.time()
-        if self.partner[recipient].check_balance2(self.contract_table[cr].amount + result_incentive, self.RTT.get_accumulate_time()):
+        if self.partner[recipient].check_balance2(self.contract_table[cr].amount + result_incentive):
             self.partner[recipient].pop_reserve_payment(cr)
             self.contract_table[cr].lock_time.append(new_time)
 
@@ -576,12 +572,13 @@ class Node:
                     initiator.experiment_result.onchain_access +=1
 
                     initiator.experiment_result.onchain_access_node[r] = self.name
-                    initiator.experiment_result.onchain_access_balance[r] = self.partner[recipient].test_get_balance(self.RTT.get_accumulate_time())
+                    initiator.experiment_result.onchain_access_balance[r] = \
+                        self.partner[recipient].test_get_balance(self.RTT[initiator.name].get_accumulate_time())
                     initiator.experiment_result.onchain_access_selected_contract[r] = \
-                        initiator.experiment_result.selected_contract[r][self.name], receive_aux_contract[1][10] / contract_meaningful_delay_constant
+                        initiator.experiment_result.selected_contract[r][self.name], receive_aux_contract[1][17] / contract_meaningful_delay_constant
                     temp = initiator.experiment_result.onchain_access_pendingTime[r]
                     initiator.experiment_result.onchain_access_pendingTime[r] = time.time() - temp
-                    initiator.experiment_result.onchain_access_pendingQueue[r] = initiator.experiment_result.pending_queue[r][self.name]
+                    initiator.experiment_result.onchain_access_pendingQueue[r] = initiator.experiment_result.pending_queue_lock[r][self.line]
 
                     # delay = (aux_delay[7] / contract_meaningful_delay_constant)
                     # self.update_contract_selection_standard(cr, delay, recipient, 0)
@@ -607,16 +604,19 @@ class Node:
             pending_payment = self.partner[message.producer].locked_BP(message.BP)
             self.partner[message.producer].add_pending_payment(message.cr, pending_payment)
             self.contract_table[message.cr].producer = message.producer
+            consumer = self.contract_table[message.cr].consumer
             self.contract_table[message.cr].lock_time.append(time.time())
 
             if self != message.target :
                 temp2 = {self.line: message.initiator.experiment_result.balance[round][self.name]}
                 temp3 = {self.line: message.initiator.experiment_result.selected_contract[round][self.name]}
-                temp4 = {self.line: message.initiator.experiment_result.pending_queue[round][self.name]}
-
                 message.initiator.experiment_result.balance[round].update(temp2)
                 message.initiator.experiment_result.selected_contract[round].update(temp3)
-                message.initiator.experiment_result.pending_queue[round].update(temp4)
+
+                temp = {self.line: consumer.partner[self].get_pending_payment_count()}
+                if not round in message.initiator.experiment_result.pending_queue_lock :
+                    message.initiator.experiment_result.pending_queue_lock[round] = {}
+                message.initiator.experiment_result.pending_queue_lock[round].update(temp)
 
         if self.address == message.target.address:
             M = [self.target_reveal_secret(message.cr, message.producer, message.consumer)]
@@ -687,15 +687,17 @@ class Node:
 
             return message
 
-    def receive_reveal_secret(self, message, round, Omega, Omega_prime, total_round):
+    def receive_reveal_secret(self, message, r, Omega, Omega_prime, total_round):
         self.contract_table[message.cr].secret = message.secret
         self.contract_table[message.cr].endTime = message.endTime
         self.contract_table[message.cr].signed_endTime = message.signed_endTime
         aux_incentive = self.contract_table[message.cr].aux_incentive
         aux_delay = self.contract_table[message.cr].aux_delay
+        selected_contract = self.contract_table[message.cr].selected_contract
+        consumer = self.contract_table[message.cr].consumer
 
         initiator = self.contract_table[message.cr].initiator
-        BP, finalAmount, final_incentive, final_delay = self.partner[message.consumer].unlock(self.w3, message.cr,
+        BP, finalAmount, final_incentive, final_delay, select_contract_index = self.partner[message.consumer].unlock(self.w3, message.cr,
                                                                                               message.secret,
                                                                                               message.endTime,
                                                                                               aux_incentive, aux_delay, self,initiator)
@@ -708,9 +710,8 @@ class Node:
         # print("test2 ",message.consumer.name)
 
         # print("{} -> {} reveal_secret".format(message.consumer.name, self.name))
-        # print("[{}, {}]{} end time : {}, start time {}".format(initiator.name, round, self.name,
+        # print("[{}, {}]{} end time : {}, start time {}".format(initiator.name, r, self.name,
         #                                                       message.endTime, self.contract_table[message.cr].startTime))
-
         if initiator != self:
             M.append(revealSecret(message.cr, self.contract_table[message.cr].secret, message.endTime,
                                   message.signed_endTime, producer, self, message.locked_transfer_endtime))
@@ -720,30 +721,55 @@ class Node:
 
                 min=0
                 result_count = 150
-                if round >= min and len(self.experiment_result.utility) <= result_count:
-                    self.get_hub_result(min, round, message.cr, self.name, message.consumer.name,
+                if r >= min and len(self.experiment_result.utility) <= result_count:
+                    self.get_hub_result(min, r, message.cr, self.name, message.consumer.name,
                                         final_incentive, final_delay, result_count, Omega, Omega_prime, message.consumer)
             return M
         else:
+            incentive = 0
+            weight = contract_meaningful_delay_constant / payGo_contract_meaningful_delay_constant
+
+            if final_incentive == 0:
+                incentive = 0
+            else:
+                # print("test", self.contract_table[message.cr].selected_index, len(self.contract_table[message.cr].contract_bundle[consumer]["Incentive"]))
+                bundle = self.contract_table[message.cr].contract_bundle[self.contract_table[message.cr].consumer]
+                for i in range(len(bundle["Delay"]) - 1, -1, -1):
+                    if bundle["Delay"][i] / contract_meaningful_delay_constant >= final_delay / weight:
+                        incentive = round(bundle["Incentive"][i][0] / contract_meaningful_incentive_constant, 3)
+                        break
+
             endTime = time.time()
             self.experiment_result.complete_payment += 1
 
-            print("[{}] {} complete payGo : {}".format(round, self.name, self.experiment_result.complete_payment))
+            print("[{}] {} complete payGo : {}".format(r, self.name, self.experiment_result.complete_payment))
 
             min = 0
             result_count = 150
+            turningPoint = 50
 
-            temp = self.experiment_result.protocol_time[round]["lockTransfer"]
-            self.experiment_result.protocol_time[round]["lockTransfer"] = message.locked_transfer_endtime - temp
+            temp = self.experiment_result.protocol_time[r]["lockTransfer"]
+            self.experiment_result.protocol_time[r]["lockTransfer"] = message.locked_transfer_endtime - temp
 
-            if round >= min and len(self.experiment_result.delay) <= result_count:
-                self.get_result(min, round, message.cr, final_incentive, final_delay, endTime,
-                                message.locked_transfer_endtime, result_count, Omega, Omega_prime)
+            if r >= min and len(self.experiment_result.delay) <= result_count:
+                if r == turningPoint:
+                    self.experiment_result.turningPoint = time.time()
+
+                self.get_result(min, r, message.cr, incentive, final_delay, endTime,
+                                message.locked_transfer_endtime, result_count, Omega, Omega_prime, selected_contract, (aux_incentive, aux_delay), weight)
             return M
 
-    def get_result(self, min, round, cr, final_incentive, final_delay, endTime, locked_transfer_endtime, result_count, Omega, Omega_prime):
+    def get_result(self, min, round, cr, final_incentive, final_delay, endTime, locked_transfer_endtime, result_count,
+                   Omega, Omega_prime, s_contract, a_contract, weight):
         # final_delay = (message.endTime - self.contract_table[message.cr].startTime) / time_meaningful_constant
-        utility = contract_bundle(self.address).get_producer_utility(final_incentive, final_delay,Omega)
+        utility = contract_bundle(self.address).get_producer_utility(final_incentive, final_delay / weight,Omega)
+
+        # if utility < 0 :
+        #     print("selected index : ", self.contract_table[cr].selected_index)
+        #     print("receive bundle : ", self.contract_table[cr].contract_bundle[self.contract_table[cr].consumer])
+        #     print("delay : ", final_delay)
+        #     print("s_contract : ", s_contract)
+        #     print("a_contract : ", a_contract)
 
         if final_incentive == 0 :
             self.experiment_result.zero_incentive +=1
@@ -753,6 +779,7 @@ class Node:
         self.experiment_result.contract_delay.append(final_delay)
         self.experiment_result.incentive.append(final_incentive)
         self.experiment_result.utility.append(utility)
+        self.experiment_result.payment_endTime.append(time.time())
         print("{} : accumulate round {}".format(self.name, len(self.experiment_result.delay)))
         if len(self.experiment_result.delay) == result_count:
             self.experiment_result.complete  = True
@@ -777,8 +804,8 @@ class Node:
         sheet1.cell(row=1, column=2).value = "Conditional payment"
         sheet1.cell(row=1, column=3).value = "incentive"
         sheet1.cell(row=1, column=4).value = "Utility"
-        sheet1.cell(row=1, column=5).value = "queueing(h1)(count)"
-        sheet1.cell(row=1, column=6).value = "queueing(h2)(count)"
+        sheet1.cell(row=1, column=5).value = "queueing(h1)"
+        sheet1.cell(row=1, column=6).value = "queueing(h2)"
         sheet1.cell(row=1, column=9).value = "balacnce(h1)"
         sheet1.cell(row=1, column=10).value = "balacnce(h2)"
         sheet1.cell(row=1, column=11).value = "selected_contract_delay(h1)"
@@ -791,10 +818,11 @@ class Node:
         sheet1.cell(row=1, column=18).value = "pending_payment_settle(h2)"
         sheet1.cell(row=1, column=19).value = "zeroIncetive(count)"
         sheet1.cell(row=1, column=20).value = "onchainAccess(count)"
-        sheet1.cell(row=1, column=21).value = "round"
+        sheet1.cell(row=1, column=21).value = "currentTime"
         sheet1.cell(row=1, column=22).value = "tps"
 
         sheet1.cell(row=1, column=23).value = "onchain info(node) ->"
+        sheet1.cell(row=1, column=24).value = "round ->"
         sheet1.cell(row=1, column=25).value = "balance"
         sheet1.cell(row=1, column=26).value = "selected_contract"
         sheet1.cell(row=1, column=27).value = "aux_contract"
@@ -811,7 +839,7 @@ class Node:
             sheet1.cell(row=row_index, column=13).value = node.experiment_result.protocol_time[complete_round]["propose"]
             sheet1.cell(row=row_index, column=14).value = node.experiment_result.protocol_time[complete_round]["select"]
             sheet1.cell(row=row_index, column=15).value = node.experiment_result.protocol_time[complete_round]["lockTransfer"]
-            sheet1.cell(row=row_index, column=21).value = complete_round
+            sheet1.cell(row=row_index, column=21).value = node.experiment_result.payment_endTime[index] - node.experiment_result.payGo_startTime
 
             # D는 1이 마지막 hub node, A는 2가 마지막 hub node
             if complete_round in node.experiment_result.pending_payment_settle:
@@ -838,7 +866,7 @@ class Node:
 
                 for i in range(st, dt, interval) :
                     sheet1.cell(row=row_index, column=k).value = \
-                        node.experiment_result.pending_queue[complete_round][i]
+                        node.experiment_result.pending_queue_lock[complete_round][i]
                     sheet1.cell(row=row_index, column=k+4).value = \
                         node.experiment_result.balance[complete_round][i]
                     sheet1.cell(row=row_index, column=k+6).value = \
@@ -848,14 +876,17 @@ class Node:
         sheet1.cell(row=2, column=19).value = node.experiment_result.zero_incentive
         sheet1.cell(row=2, column=20).value = node.experiment_result.onchain_access
         processing_time = time.time() - node.experiment_result.payGo_startTime
+        processing_time2 = time.time() - node.experiment_result.turningPoint
         print("processing_time : ", processing_time)
         print("processing_tx : ",  node.experiment_result.processing_tx)
         sheet1.cell(row=2, column=22).value = node.experiment_result.processing_tx / processing_time
         sheet1.cell(row=3, column=22).value = node.experiment_result.complete_payment / processing_time
+        sheet1.cell(row=4, column=22).value = (node.experiment_result.complete_payment - 50) / processing_time2
 
         index = 2
         for i in node.experiment_result.onchain_access_node:
             sheet1.cell(row=index, column=23).value = node.experiment_result.onchain_access_node[i]
+            sheet1.cell(row=index, column=24).value = i
             sheet1.cell(row=index, column=25).value = node.experiment_result.onchain_access_balance[i]
             sheet1.cell(row=index, column=26).value = node.experiment_result.onchain_access_selected_contract[i][0]
             sheet1.cell(row=index, column=27).value = node.experiment_result.onchain_access_selected_contract[i][1]

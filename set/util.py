@@ -119,6 +119,8 @@ def payGo(initiator, target, amount, Omega, Omega_prime, round, total_round, sta
     message_bundle = []
     secret = os.urandom(32)
     payment_state = "contractPropose"
+    # proposal complete, startTime
+    initiator.experiment_result.proposal_complete[round] = ["proposal", start_time]
     message_bundle += initiator.init_contract_propose(round, initiator, target, amount, secret, start_time, Omega,
                                                       Omega_prime, payment_state, start)
     while True:

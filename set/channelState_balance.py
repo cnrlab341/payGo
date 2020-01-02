@@ -5,8 +5,8 @@ from message import LockedTransfer_structure, unlockTransfer
 from raiden.utils.signing import pack_data
 from structure import balanceProof
 from algorism import RTT
-from settingParameter import time_meaningful_constant, contract_meaningful_delay_constant
-import threading, time
+from settingParameter import time_meaningful_constant, contract_meaningful_delay_constant, payGo_contract_meaningful_delay_constant
+import time
 
 class ChannelState():
     def __init__(self, sk, i, tokenNetwork, addrs, deposit, channel_identifier, secret_registry_contract, lock):
@@ -34,6 +34,15 @@ class ChannelState():
         self.queueing_record = [[],[]]
         self.weight = 0.6
 
+    def get_queueing_record(self):
+        return self.queueing_record[self.i]
+
+    def update_queueing_record(self, amount_ration, delay):
+        self.lock.acquire()
+        try :
+            self.queueing_record[self.i] = amount_ration, delay
+        finally: self.lock.release()
+
     def get_pending_payment(self):
         return self.pending_payment[self.i]
 
@@ -42,6 +51,15 @@ class ChannelState():
 
     def pop_pending_payment(self, cr):
         self.pending_payment[self.i].pop(cr)
+
+    def get_pending_payment_count(self):
+        self.lock.acquire()
+        try:
+            reserve = self.pending_payment[self.i]
+        finally:
+            self.lock.release()
+
+        return len(reserve.keys())
 
     def set_reserve_payment(self, cr, amount):
         self.lock.acquire()
@@ -62,11 +80,19 @@ class ChannelState():
         finally:self.lock.release()
 
         amount = 0
-        for cr in list(reserve):
+        for cr in reserve:
                 amount += reserve[cr]
 
         return amount
 
+    def get_reserve_payment_count(self):
+        self.lock.acquire()
+        try:
+            reserve = self.reserve_payment[self.i]
+        finally:
+            self.lock.release()
+
+        return len(reserve.keys())
 
     def set_wait_confirm(self, cr, amount, start_time):
         self.lock.acquire()
@@ -102,21 +128,20 @@ class ChannelState():
             self.lock.release()
 
 
-    def check_balance2(self, amount, RTT):
-        awaitAmount = self.update_awaitAmount(RTT)
-        reserve = self.get_reserve_payment()
+    def check_balance2(self, amount):
+        a = False
         self.lock.acquire()
         try :
             result = self.deposit[self.i] - self.transferred_amount[self.i] + \
-                     self.transferred_amount[1-self.i] - self.locked_amount[self.i] - awaitAmount - reserve
+                     self.transferred_amount[1-self.i] - self.locked_amount[self.i]
 
             if result >= amount:
                 self.locked_amount[self.i] += amount
-                return True
-            else:
-                return False
+                a = True
         finally:
             self.lock.release()
+
+        return a
 
     def update_awaitAmount(self, RTT):
         wait_confirm = self.get_wait_confirm()
@@ -240,11 +265,13 @@ class ChannelState():
             contracts.append(temp)
 
         # if node == initiator:
-        # print("[{}] {} last contract : {}".format(initiator.name, node.name, contracts))
-        for contract in contracts :
-            if contract[1] >= final_delay :
+        count = 0
+        weight = contract_meaningful_delay_constant / payGo_contract_meaningful_delay_constant
+        for contract in contracts:
+            if contract[1] >= final_delay / weight:
                 final_incentive = contract[0]
                 break
+            count +=1
         # print("incentive over contracts ,", contracts)
         # print("final_delay : ", final_delay)
         # print("final_incentive : ", final_incentive)
@@ -300,7 +327,7 @@ class ChannelState():
         BP = balanceProof(message_data, additional_hash, balance_hash, signature['signature'].hex())
         self.BP[self.i] = BP
 
-        return BP, result, final_incentive, final_delay
+        return BP, result, final_incentive, final_delay, count
 
     def locked_BP(self, BP):
         self.lock.acquire()

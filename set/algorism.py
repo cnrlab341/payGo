@@ -13,10 +13,11 @@ bnds = [(0.0,40.0)] # bound
 class RTT :
     def __init__(self):
         self.accumulate_RTT = 0.003
-        self.weight = 0.7
+        self.weight = 0.6
 
     def update_PTT(self, name, newRTT):
         self.accumulate_RTT = self.accumulate_RTT * self.weight + newRTT * (1-self.weight)
+        # self.previous_RTT = newRTT
         # print("accumulate_time update between {} : {}".format(name, self.accumulate_RTT))
 
     def get_accumulate_time(self):
@@ -160,12 +161,12 @@ class contract_bundle :
             result = optimize.minimize(temp, x0, method="TNC", bounds=bnds, options={'maxiter': 1000})
             # print("result.fun", result.fun)
             # print("result.x bool", result.x)
-
             self.Client_U_I.append(result.fun)
             self.Incentive.append(result.x)
         # print("result len", len(result.x))
         # self.state_print("incentive", self.Incentive)
         self.set_Delta()
+
 
         count = 0
         while True:
@@ -191,6 +192,8 @@ class contract_bundle :
                 self.Client_U_I[i] = self.Client_U_I[infeasible_point['st'] - 1]
                 self.Incentive[i] = self.Incentive[infeasible_point['st'] - 1]
 
+
+
         #2_ for
         for i in range(1, self.N+1) :
             self.Delay.append(self.set_delay(i))
@@ -209,16 +212,20 @@ class contract_bundle :
         return bundle
 
     def Xcontract_meaningful_costant(self, bundle):
+        length = len(bundle["Incentive"])
         for i in bundle.keys():
             k = 0
-            for j in range(len(bundle[i])):
+            for j in range(length):
                 if bundle[i][k] == 0:
+                    bundle[i].pop(k)
+                elif bundle[i][k] >= 1.5 and i == "Delay" :
+                    # print("pop", bundle[i][k])
                     bundle[i].pop(k)
                 else :
                     if i == "Incentive" :
-                        bundle[i][k] *= contract_meaningful_incentive_constant
+                        bundle[i][k] = bundle[i][k] * contract_meaningful_incentive_constant
                     else :
-                        bundle[i][k] *= contract_meaningful_delay_constant
+                        bundle[i][k] = bundle[i][k] * contract_meaningful_delay_constant
                     k +=1
         return bundle
 
@@ -244,18 +251,24 @@ class contract_bundle :
 
 # test = {}
 # A_model = []
-# for i in range(30) :
-#     if i < 29 :
+# for i in range(40) :
+#     if i < 39 :
 #         A_model.append(1)
 #     else :
 #         A_model.append(1)
 #
-# for i in range(30) :
+# for i in range(40) :
 #     test[i]  = A_model[i]
-#
 # start = time.time()
-# a = contract_bundle("asd").execute(test,3,4)
+# a = contract_bundle("asd").execute(test,2, 4)
 # end = time.time()
 # print(end-start)
 # print("len", len(a["Incentive"]))
-# print(a)
+# print(a["Delay"])
+# print(a["Incentive"])
+
+# for i in range(len(a["Incentive"])) :
+#     incentive = a["Incentive"][i] / contract_meaningful_incentive_constant
+#     delay = a["Delay"][i] / contract_meaningful_delay_constant
+#     test =contract_bundle("asd").get_producer_utility(incentive, delay, 2)
+#     print(test)

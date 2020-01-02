@@ -139,6 +139,8 @@ class Node:
 
         additional_incentive += incentive
         additional_delay += delay
+        self.contract_table[cr].selected_contract = selected_incentive, selected_delay
+        self.contract_table[cr].additional_contract = additional_incentive, additional_delay
         new_time = time.time()
         message = contractSelect(cr, table.initiator, self, recipient, table.target,
                                  selected_incentive, selected_delay, 0, additional_incentive,
@@ -447,27 +449,27 @@ class Node:
     def receive_contract_confirm(self, message, round):
         # print("[{}, {}] {}' receive_contract_confirm ".format(round, self.contract_table[message.cr].initiator.name, self.name))
         M = []
-        consumer = self.contract_table[message.cr].consumer
         incentive = self.contract_table[message.cr].selected_contract[0] + \
                     self.contract_table[message.cr].additional_contract[0]
         amount = self.contract_table[message.cr].amount + incentive
-        # a = self.reserve_payment(message.cr, consumer, amount)
 
-        wait_amount = self.partner[consumer].get_wait_confirm()
-        if not message.cr in wait_amount :
-            self.partner[consumer].update_average_capacity(-amount)
+        self.partner[message.producer].update_average_capacity(amount)
 
-        self.contract_table[message.cr].my_contract = message.incentive, message.delay
+        if self != self.contract_table[message.cr].target :
+            consumer = self.contract_table[message.cr].consumer
+            wait_amount = self.partner[consumer].get_wait_confirm()
+            if not message.cr in wait_amount:
+                self.partner[consumer].update_average_capacity(-amount)
 
-        if consumer != self.contract_table[message.cr].target :
+            self.contract_table[message.cr].my_contract = message.incentive, message.delay
+            if message.cr in self.partner[consumer].wait_confirm[self.partner[consumer].i]:
+                self.partner[consumer].wait_confirm[self.partner[consumer].i].pop(message.cr)
+
+            self.RTT.update_PTT(self.name, time.time() - self.contract_table[message.cr].selection_RTT_start)
+
             M.append(self.send_contract_confirm(message.cr, consumer,
-                                                self.contract_table[message.cr].selected_contract[0],
-                                                self.contract_table[message.cr].selected_contract[1]))
-
-        if message.cr in self.partner[consumer].wait_confirm[self.partner[consumer].i] :
-            self.partner[consumer].wait_confirm[self.partner[consumer].i].pop(message.cr)
-
-        self.RTT.update_PTT(self.name, time.time() - self.contract_table[message.cr].selection_RTT_start)
+                                            self.contract_table[message.cr].selected_contract[0],
+                                            self.contract_table[message.cr].selected_contract[1]))
 
         return M
 
@@ -712,7 +714,7 @@ class Node:
                 self.experiment_result.h2_contract_bundle.append(self.contract_table[message.cr].contract_bundle[message.consumer])
 
                 min=0
-                result_count = 150
+                result_count = 50
                 if round >= min and len(self.experiment_result.utility) <= result_count:
                     self.get_hub_result(min, round, message.cr, self.name, message.consumer.name,
                                         final_incentive, final_delay, result_count, Omega, Omega_prime, message.consumer)
@@ -724,7 +726,7 @@ class Node:
             print("[{}] {} complete payGo : {}".format(round, self.name, self.experiment_result.complete_payment))
 
             min = 0
-            result_count = 150
+            result_count = 50
 
             temp = self.experiment_result.protocol_time[round]["lockTransfer"]
             self.experiment_result.protocol_time[round]["lockTransfer"] = message.locked_transfer_endtime - temp
@@ -942,7 +944,6 @@ class Node:
     def receive_unlockBP(self, message, round):
         state = self.partner[message.producer].unlock_BP(message.BP)
         self.partner[message.producer].pop_pending_payment(message.cr)
-        self.partner[message.producer].update_average_capacity(message.finalAmount)
         consumer = self.contract_table[message.cr].consumer
 
         if self.contract_table[message.cr].target != self :

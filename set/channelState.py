@@ -87,8 +87,6 @@ class ChannelState():
         finally:
             self.lock.release()
 
-
-
     def check_average_capacity(self, amount):
         # self.get_wait_confirm(RTT)
         result = self.get_average_capacity()
@@ -160,6 +158,7 @@ class ChannelState():
 
         self.lock.acquire()
         try :
+            # self.moving_average_capacity[self.i] = self.moving_average_capacity[self.i] / 2
             self.locked_amount[i] -= amount
             self.leaves[i].pop(cr)
         finally: self.lock.release()

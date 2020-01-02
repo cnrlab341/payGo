@@ -59,8 +59,10 @@ class payer_result :
         self.select_time = {}
         self.complete = False
         self.pending_queue = {} # initiator, hub1, hub2
+        self.pending_queue_lock = {}  # initiator, hub1, hub2
         self.capacity = {} #initiator, hub1, hub2
         self.balance = {} #initiator, hub1, hub2
+        self.receive_theta = {} #initiator, hub1, hub2
         self.selected_contract = {}
         self.onchain_access_node = {}
         self.onchain_access_capacity = {}
@@ -70,8 +72,13 @@ class payer_result :
         self.onchain_access_pendingQueue = {}
         self.payGo_startTime = 0
         self.processing_tx = 0
-
-
+        self.current_RTT = []
+        self.proposal_complete = {}
+        self.pending_locked_transfer = {}
+        self.payment_endTime = []
+        self.contract_boundary = {}
+        self.onchain_access_contract_boundary = {}
+        self.turningPoint = 0
 
 
 class hub_result :
@@ -88,4 +95,4 @@ class hub_result :
         self.complete = False
         self.h1_contract_bundle = []
         self.h2_contract_bundle = []
-
+        self.pending_locked_transfer = {}

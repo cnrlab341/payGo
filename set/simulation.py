@@ -3,14 +3,17 @@ from raiden.utils import sha3
 from set.util import account_from_key, token_transfer, payGo
 import set.contract
 # from set.node import Node
-from set.node_balance import Node
+# from set.node_balance import Node
+from set.node_capacity import Node
 # from set.channelState import ChannelState
-from set.channelState_balance import ChannelState
+# from set.channelState_balance import ChannelState
+from set.channelState_capacity import ChannelState
 import set.key as key
 from set.structure import hub_result, payer_result
 import set.settingParameter as p
+from set.algorism import RTT
 import threading
-import time, os
+import time, os, random
 from set.message import token_network
 from multiprocessing.pool import ThreadPool
 from multiprocessing import Lock
@@ -62,65 +65,74 @@ def simple_create_channel(n1, n2, n1_deposit, n2_deposit, lock):
 index = 0
 lock = Lock()
 result = payer_result()
-a = Node(w3, account[index], "A", 0, result, lock)
+f1 = RTT()
+f2 = RTT()
+a = Node(w3, account[index], "A", 0, result, lock,f1,f2)
 index +=1
 b = []
 result = hub_result()
-for i in range(10) :
-    b.append(Node(w3, account[index], "B" + str(i), 1, result, lock))
+f1 = RTT()
+f2 = RTT()
+for i in range(5) :
+    b.append(Node(w3, account[index], "B" + str(i), 1, result, lock,f1,f2))
     index +=1
 c = []
+f1 = RTT()
+f2 = RTT()
 result = hub_result()
-for i in range(10) :
-    c.append(Node(w3, account[index], "C" + str(i), 2, result, lock))
+for i in range(5) :
+    c.append(Node(w3, account[index], "C" + str(i), 2, result, lock,f1,f2))
     index +=1
 result = payer_result()
-d = Node(w3, account[index], "D", 3, result, lock)
+f1 = RTT()
+f2 = RTT()
+d = Node(w3, account[index], "D", 3, result, lock,f1,f2)
 
-for i in range(10) :
+for i in range(5) :
     simple_create_channel(a, b[i], 100000000, 100000, lock)
-    for j in range(10) :
+    for j in range(5) :
         simple_create_channel(b[i], c[j], 100000, 100000, lock)
     simple_create_channel(c[i], d, 100000, 100000000, lock)
 
+def flow_payGo(initiator, target, amount, Omega, Omega_prime, weight, stop, round, start) :
 
-pool1 = ThreadPool(processes=1000)
-
-def flow_payGo(initiator, target, amount, Omega, Omega_prime, second, round, start) :
+    # if weight :
+    #     time_list = [1,3]
+    # for i in range(len(time_list)) :
+    #     time_list[i] = time_list[i] * weight
+    # else :
+    #     time_list = [1,1,1,1,1,1,1,1,1,1]
+    # random.shuffle(time_list)
+    index = 0
     for i in range(round) :
         pool = ThreadPool(processes=1)
         pool.apply_async(payGo, (initiator, target, amount, Omega, Omega_prime, i, round, start))
-        time.sleep(second)
-
+        # time.sleep(time_list[index])
+        time.sleep(weight)
+        # index +=1
+        # if index == 3 and stop:
+            # random.shuffle(time_list)
+            # time.sleep(1.5)
+            # index = 0
+        # print(index, time_list[index])
         if i == round : return 0
-
+#
 # sensitiy change : check 사항
 # 1. onchain access : aux
 # 2. margin, init value pending delay
 # 3. aux count
 # 4. min probability
-# start = time.time()
-# th1_list = pool1.apply_async(flow_payGo, (a, d, 70000, 2, 6, 0.5, 4000, start))
-# th_list = pool1.apply_async(flow_payGo, (d, a, 70000, 2, 6, 0.5, 4000, start))
-# th1_list.get()
-n = 1
-for i in range(n) :
-    payGo(a,d,1000,3,6,i,n,0)
-#     payGo(d,a,1,3,6,i,n,0)
+pool1 = ThreadPool(processes=1000)
+start = time.time()
+th1_list = pool1.apply_async(flow_payGo, (a, d, 50000, 2, 4,1,True, 2000, start))
+th_list = pool1.apply_async(flow_payGo, (d, a,25000, 2, 4,1,False, 2000, start))
+th1_list.get()
+# 35000, 24000
+
+#
+# n = 5
+# for i in range(n) :
+#     payGo(a,d,70000,1.5,3.5,i,n,0)
+#     payGo(d,a,70000,1,3,i,n,0)
 
 
-# payGo(a,d,10000,3,6,1,10, 0)
-# payGo(a,d,10000,3,6,2,10, 0)
-# payGo(a,d,10000,3,6,3,10, 0)
-# payGo(a,d,10000,3,6,4,10, 0)
-
-# payGo(d,a,30000,3,5,3,4, 0)
-# payGo(d,a,30000,3,5,4,4, 0)
-
-# payGo(a,d,30000,3,5,1,1, 0)
-
-# 2배 차이 : amount, 같은 amount 시간 2배 차이        
-# 3배 차이 : amount, 같은 amount 시간 3배 차이
-# 4배 차이 : amount 2배차이, time 2배 차이
-# 6배 차이 : amoint 3배차이, time 2배 차이
-# delay 그래프
