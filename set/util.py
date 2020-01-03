@@ -114,7 +114,7 @@ def wait_event(w3, contract, tx_hash, event_name):
 #         pool.apply_async(payGo_inner, (initiator, target, amount, start_time, Omega, Omega_prime, round, total_round, lock))
 #         return False
 
-def payGo(initiator, target, amount, Omega, Omega_prime, round, total_round, start) :
+def payGo(initiator, target, amount, Omega, Omega_prime, round, total_round, start, interval) :
     start_time = time.time()
     message_bundle = []
     secret = os.urandom(32)
@@ -122,7 +122,7 @@ def payGo(initiator, target, amount, Omega, Omega_prime, round, total_round, sta
     # proposal complete, startTime
     initiator.experiment_result.proposal_complete[round] = ["proposal", start_time]
     message_bundle += initiator.init_contract_propose(round, initiator, target, amount, secret, start_time, Omega,
-                                                      Omega_prime, payment_state, start)
+                                                      Omega_prime, payment_state, start, interval)
     while True:
         result = []
         # print("[{}] type : {}".format(round, message_bundle[0].id))

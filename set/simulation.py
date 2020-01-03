@@ -73,14 +73,14 @@ b = []
 result = hub_result()
 f1 = RTT()
 f2 = RTT()
-for i in range(5) :
+for i in range(10) :
     b.append(Node(w3, account[index], "B" + str(i), 1, result, lock,f1,f2))
     index +=1
 c = []
 f1 = RTT()
 f2 = RTT()
 result = hub_result()
-for i in range(5) :
+for i in range(10) :
     c.append(Node(w3, account[index], "C" + str(i), 2, result, lock,f1,f2))
     index +=1
 result = payer_result()
@@ -88,13 +88,13 @@ f1 = RTT()
 f2 = RTT()
 d = Node(w3, account[index], "D", 3, result, lock,f1,f2)
 
-for i in range(5) :
+for i in range(10) :
     simple_create_channel(a, b[i], 100000000, 100000, lock)
-    for j in range(5) :
+    for j in range(10) :
         simple_create_channel(b[i], c[j], 100000, 100000, lock)
     simple_create_channel(c[i], d, 100000, 100000000, lock)
 
-def flow_payGo(initiator, target, amount, Omega, Omega_prime, weight, stop, round, start) :
+def flow_payGo(initiator, target, amount, Omega, Omega_prime, interval, stop, round, start) :
 
     # if weight :
     #     time_list = [1,3]
@@ -106,9 +106,9 @@ def flow_payGo(initiator, target, amount, Omega, Omega_prime, weight, stop, roun
     index = 0
     for i in range(round) :
         pool = ThreadPool(processes=1)
-        pool.apply_async(payGo, (initiator, target, amount, Omega, Omega_prime, i, round, start))
+        pool.apply_async(payGo, (initiator, target, amount, Omega, Omega_prime, i, round, start, interval))
         # time.sleep(time_list[index])
-        time.sleep(weight)
+        time.sleep(interval)
         # index +=1
         # if index == 3 and stop:
             # random.shuffle(time_list)
@@ -124,15 +124,13 @@ def flow_payGo(initiator, target, amount, Omega, Omega_prime, weight, stop, roun
 # 4. min probability
 pool1 = ThreadPool(processes=1000)
 start = time.time()
-th1_list = pool1.apply_async(flow_payGo, (a, d, 50000, 2, 4,1,True, 2000, start))
-th_list = pool1.apply_async(flow_payGo, (d, a,25000, 2, 4,1,False, 2000, start))
+th1_list = pool1.apply_async(flow_payGo, (a, d, 80000, 1,3.5,1,True, 2000, start))
+th_list = pool1.apply_async(flow_payGo, (d, a,80000, 1,3.5,1.3,False, 2000, start))
 th1_list.get()
 # 35000, 24000
 
-#
-# n = 5
+# n = 1
 # for i in range(n) :
-#     payGo(a,d,70000,1.5,3.5,i,n,0)
+#     payGo(a,d,70000,1,3.5,i,n,0,1)
 #     payGo(d,a,70000,1,3,i,n,0)
-
 

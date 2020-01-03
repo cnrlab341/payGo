@@ -31,6 +31,7 @@ class Node:
         self.probability = {}
         self.RTT = {"A":F1_RTT, "D":F2_RTT}
         self.lock = lock
+        self.proposal_delay = 0
 
     def get_channel_probability(self):
         channel_probability = {}
@@ -55,19 +56,8 @@ class Node:
         # self.partner[channel_state.addrs[1-channel_state.i]] = channel_state
         self.partner[partner] = channel_state
 
-    def init_contract_propose(self, round, initiator, target, amount, secret, start_time, Omega, Omega_prime, payment_state, start):
+    def init_contract_propose(self, round, initiator, target, amount, secret, start_time, Omega, Omega_prime, payment_state, start, interval):
         cr = '0x' + sha3(secret).hex()
-
-        if round >= 1 :
-            # print("[{}, {}] proposal_state : {}".format(round, initiator.name, self.experiment_result.proposal_complete[round-2][0]))
-            if self.experiment_result.proposal_complete[round-1][0] != "complete" :
-                temp = start_time
-                # print('Good', initiator.name)
-                start_time = self.experiment_result.proposal_complete[round-1][1]
-                self.experiment_result.proposal_complete[round] = self.experiment_result.proposal_complete[round-1]
-                # if initiator.name == "A" :
-                #     print("{} not proposal complte, start_time {}->{}".format(round-1, temp, start_time))
-
         channel_probability = self.get_channel_probability()
         bundle = contract_bundle(initiator.address).execute(channel_probability, Omega, Omega_prime)
         M = []
@@ -76,6 +66,18 @@ class Node:
                 message = contractPropose(cr, initiator, self, recipient, target, amount, bundle)
 
                 if not cr in self.contract_table.keys():
+                    if round >= 1:
+                        # print("[{}, {}] proposal_state : {}".format(round, initiator.name, self.experiment_result.proposal_complete[round-2][0]))
+                        if self.experiment_result.proposal_complete[round - 1][0] != "complete":
+                            self.proposal_delay += interval
+                            self.experiment_result.fail_count +=1
+                            # print('Good', initiator.name)
+                            # start_time += self.experiment_result.proposal_complete[round-1][1]
+                            self.experiment_result.proposal_complete[round] = self.experiment_result.proposal_complete[
+                                round - 1]
+                            # print("{} not proposal complte, start_time {}->{}".format(round-2, temp, start_time))
+                    start_time -= self.proposal_delay
+
                     self.experiment_result.payGo_startTime = start
                     self.contract_table[cr] = contractTable(message)
                     self.contract_table[cr].secret = secret
@@ -720,7 +722,7 @@ class Node:
                 self.experiment_result.h2_contract_bundle.append(self.contract_table[message.cr].contract_bundle[message.consumer])
 
                 min=0
-                result_count = 150
+                result_count = 200
                 if r >= min and len(self.experiment_result.utility) <= result_count:
                     self.get_hub_result(min, r, message.cr, self.name, message.consumer.name,
                                         final_incentive, final_delay, result_count, Omega, Omega_prime, message.consumer)
@@ -745,7 +747,7 @@ class Node:
             print("[{}] {} complete payGo : {}".format(r, self.name, self.experiment_result.complete_payment))
 
             min = 0
-            result_count = 150
+            result_count = 200
             turningPoint = 50
 
             temp = self.experiment_result.protocol_time[r]["lockTransfer"]
@@ -821,7 +823,7 @@ class Node:
         sheet1.cell(row=1, column=21).value = "currentTime"
         sheet1.cell(row=1, column=22).value = "tps"
 
-        sheet1.cell(row=1, column=23).value = "onchain info(node) ->"
+        sheet1.cell(row=1, column=23).value = "round ->"
         sheet1.cell(row=1, column=24).value = "round ->"
         sheet1.cell(row=1, column=25).value = "balance"
         sheet1.cell(row=1, column=26).value = "selected_contract"
@@ -840,6 +842,7 @@ class Node:
             sheet1.cell(row=row_index, column=14).value = node.experiment_result.protocol_time[complete_round]["select"]
             sheet1.cell(row=row_index, column=15).value = node.experiment_result.protocol_time[complete_round]["lockTransfer"]
             sheet1.cell(row=row_index, column=21).value = node.experiment_result.payment_endTime[index] - node.experiment_result.payGo_startTime
+            sheet1.cell(row=row_index, column=24).value = complete_round
 
             # D는 1이 마지막 hub node, A는 2가 마지막 hub node
             if complete_round in node.experiment_result.pending_payment_settle:
@@ -875,6 +878,7 @@ class Node:
 
         sheet1.cell(row=2, column=19).value = node.experiment_result.zero_incentive
         sheet1.cell(row=2, column=20).value = node.experiment_result.onchain_access
+        sheet1.cell(row=3, column=20).value = node.experiment_result.fail_count
         processing_time = time.time() - node.experiment_result.payGo_startTime
         processing_time2 = time.time() - node.experiment_result.turningPoint
         print("processing_time : ", processing_time)
@@ -885,7 +889,6 @@ class Node:
 
         index = 2
         for i in node.experiment_result.onchain_access_node:
-            sheet1.cell(row=index, column=23).value = node.experiment_result.onchain_access_node[i]
             sheet1.cell(row=index, column=24).value = i
             sheet1.cell(row=index, column=25).value = node.experiment_result.onchain_access_balance[i]
             sheet1.cell(row=index, column=26).value = node.experiment_result.onchain_access_selected_contract[i][0]

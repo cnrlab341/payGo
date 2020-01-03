@@ -20,11 +20,12 @@ on_chain_access_cost = 100000
 alpha = 50
 theta = 40
 min_probability = 1.8
-decrese_weight = 0.3
-arise_weight = 0.77
+decrese_weight = 0
+arise_weight = 0.4
+# history_weigt = 0.
 contract_meaningful_incentive_constant = 100
 contract_meaningful_delay_constant = 1000
-payGo_contract_meaningful_delay_constant = 100
+payGo_contract_meaningful_delay_constant = 25
 time_meaningful_constant = 1000
 
 

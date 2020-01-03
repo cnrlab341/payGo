@@ -221,10 +221,10 @@ class ChannelState():
         try:
             temp = self.moving_average_capacity[self.i] * weight + \
                    (self.moving_average_capacity[self.i] + newPay) * (1 - weight)
-            if temp <= 0 :
-                self.moving_average_capacity[self.i] = 0
-            else :
-                self.moving_average_capacity[self.i] = temp
+            # if temp <= 0 :
+            #     self.moving_average_capacity[self.i] = 0
+            # else :
+            self.moving_average_capacity[self.i] = temp
 
         finally:
             self.lock.release()

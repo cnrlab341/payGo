@@ -79,7 +79,7 @@ class payer_result :
         self.contract_boundary = {}
         self.onchain_access_contract_boundary = {}
         self.turningPoint = 0
-
+        self.fail_count = 0
 
 class hub_result :
     def __init__(self):
