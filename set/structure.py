@@ -80,6 +80,9 @@ class payer_result :
         self.onchain_access_contract_boundary = {}
         self.turningPoint = 0
         self.fail_count = 0
+        self.personal_utility = []
+        self.personal_incentive = []
+        self.proposal_delay = 0
 
 class hub_result :
     def __init__(self):
@@ -96,3 +99,5 @@ class hub_result :
         self.h1_contract_bundle = []
         self.h2_contract_bundle = []
         self.pending_locked_transfer = {}
+        self.personal_utility = []
+        self.personal_incentive = []

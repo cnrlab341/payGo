@@ -32,7 +32,6 @@ class Node:
         self.probability = {}
         self.RTT = {"A":F1_RTT, "D":F2_RTT}
         self.lock = lock
-        self.proposal_delay = 0
 
     def get_channel_probability(self):
         channel_probability = {}
@@ -72,14 +71,14 @@ class Node:
                     if round >= 1:
                         # print("[{}, {}] proposal_state : {}".format(round, initiator.name, self.experiment_result.proposal_complete[round-2][0]))
                         if self.experiment_result.proposal_complete[round - 1][0] != "complete":
-                            self.proposal_delay += interval
+                            self.experiment_result.proposal_delay += interval
                             self.experiment_result.fail_count +=1
                             # print('Good', initiator.name)
                             # start_time += self.experiment_result.proposal_complete[round-1][1]
                             self.experiment_result.proposal_complete[round] = self.experiment_result.proposal_complete[
                                 round - 1]
                             # print("{} not proposal complte, start_time {}->{}".format(round-2, temp, start_time))
-                    start_time -= self.proposal_delay
+                    start_time -= self.experiment_result.proposal_delay
                     self.experiment_result.payGo_startTime = start
                     self.contract_table[cr] = contractTable(message)
                     self.contract_table[cr].secret = secret
@@ -223,6 +222,7 @@ class Node:
         for i in range(len(contract_bundle[producer]["Delay"]) - 1, -1, -1):
             # delay * 5 -> 수정 가능
             if delay <= contract_bundle[producer]["Delay"][i] / payGo_contract_meaningful_delay_constant:
+
                 index = i
 
                 if not already_section and type=="selection":
@@ -423,19 +423,20 @@ class Node:
             elif temp == utility:
                 selected_consumer.append(table.temp_consumer[i])
 
-        # capacity = 0
-        # selected = ""
-        # for consumer in selected_consumer :
-        #     temp = self.partner[consumer].get_average_capacity()
-        #     print("temp", temp, consumer.name)
-        #     if capacity < temp :
-        #         capacity = temp
-        #         selected = consumer
-        #         print("selected", selected.name)
-        random.shuffle(selected_consumer)
+        capacity = -100000000
+        selected = ""
+        for consumer in selected_consumer :
+            temp = self.partner[consumer].test_get_balance()
+            # temp = self.partner[consumer].get_average_capacity()
+            # print("temp", temp, consumer.name)
+            if capacity < temp :
+                capacity = temp
+                selected = consumer
+                # print("selected", selected.name)
+        # random.shuffle(selected_consumer)
         # print("selected :", selected.name)
         # print("choice node :", selected_consumer.name)
-        return selected_consumer[0]
+        return selected
 
 
     def send_contract_confirm(self, cr, selected_consumer, selected_incentive, selected_delay):
@@ -517,6 +518,9 @@ class Node:
         table = self.contract_table[cr]
         result_incentive = (table.selected_contract[0] + table.additional_contract[0])
         result_delay = table.selected_contract[1] + table.additional_contract[1]
+        # print("{} delay : {}".format(self.name, receive_selected_contract[1]/payGo_contract_meaningful_delay_constant))
+        # print(
+        #     "{} delay : {}".format(self.name, result_delay / payGo_contract_meaningful_delay_constant))
         selected_index = table.selected_index
         aux_incentive = []
         aux_delay = []
@@ -558,15 +562,8 @@ class Node:
                 self.contract_table[cr].aux_incentive = aux_incentive
                 self.contract_table[cr].aux_delay = aux_delay
 
-                # print("[{}] bp : {}".format(self.name, self.partner[recipient].test()))
-                # if initiator != self :
-                #     index = self.experiment_result.pending_locked_transfer[initiator.name][self.name].index(r)
-                    # print("index :", index)
-                    # self.experiment_result.pending_locked_transfer[initiator.name][self.name].pop(index)
-                    # print("remain", self.experiment_result.pending_locked_transfer[initiator.name][self.name])
-
                 message = LockedTransfer(cr, self, recipient, BP, target, initiator,
-                                         (result_incentive, result_delay),(aux_incentive, aux_delay))
+                                         (table.selected_contract[0], table.selected_contract[1]),(aux_incentive, aux_delay))
 
 
                 if r in initiator.experiment_result.pending_payment_settle:
@@ -589,9 +586,8 @@ class Node:
             message = resSecret(cr, initiator, table.secret)
         else:
             pending_payment = self.partner[producer].get_pending_payment()
-            # if (receive_aux_contract[1][10] / contract_meaningful_delay_constant) * 5< \
-            #         (int(new_time * time_meaningful_constant) - pending_payment[cr][2]) / time_meaningful_constant + 0.008  :
-            if (receive_aux_contract[1][17] / payGo_contract_meaningful_delay_constant) * 1.3< \
+            # int(new_time * time_meaningful_constant) - init_startTime <= init_contract_delay * 1.5
+            if (receive_selected_contract[1] / payGo_contract_meaningful_delay_constant) * 1.5< \
                     (int(new_time * time_meaningful_constant) - pending_payment[cr][2]) / time_meaningful_constant + 0.008  :
                 print("[{},{}] onchain access".format(initiator.name, r))
                 self.partner[producer].pop_pending_payment(cr)
@@ -675,7 +671,8 @@ class Node:
             amount = self.contract_table[message.cr].amount
             secrethash = message.BP.message_data.secrethash
             m = self.send_locked_transfer(message.cr, message.initiator, message.producer, partner, message.target, amount,
-                                          secrethash, message.BP, message.selected_contract, message.aux_contract, round)
+                                          secrethash, message.BP, message.selected_contract, message.aux_contract,
+                                            round)
             if m != "cancel" :
                 M.append(m)
             else :
@@ -704,7 +701,7 @@ class Node:
         new_time = time.time()
         self.experiment_result.protocol_time[round]["lockTransfer"] = new_time
         M = [self.send_locked_transfer(message.cr, initiator, 0, recipient, target, amount, sha3(message.secret),0,
-                                       (0,0), (0,0), round)]
+                                       (0,0), (0,0),round)]
         return M
 
     def target_reveal_secret(self, cr, producer, consumer):
@@ -717,7 +714,7 @@ class Node:
             signed_endTime = self.w3.eth.account.signHash(message_hash=hash_endTime, private_key=self.private_key)
 
             message = revealSecret(cr, self.contract_table[cr].secret, endTime, signed_endTime['signature'].hex(),
-                                   producer, consumer, new_time)
+                                   producer, consumer, new_time, 0)
 
             self.contract_table[cr].endTime = endTime
             self.contract_table[cr].signed_endTime = signed_endTime['signature'].hex()
@@ -753,40 +750,52 @@ class Node:
         # print("final_delay", final_delay)
         M = [resRevealSecret(message.cr, message.producer, message.consumer, BP, finalAmount)]
         producer = self.contract_table[message.cr].producer
-        # print("test ",message.producer.name)
-        # print("test2 ",message.consumer.name)
 
-        # print("{} -> {} reveal_secret".format(message.consumer.name, self.name))
-        # print("[{}, {}]{} end time : {}, start time {}".format(initiator.name, r, self.name,
-        #                                                       message.endTime, self.contract_table[message.cr].startTime))
+        incentive = 0
+        weight = contract_meaningful_delay_constant / payGo_contract_meaningful_delay_constant
+
+        start_time = self.contract_table[message.cr].startTime
+        # print("{} start time : {}".format(self.name, start_time))
         if initiator != self:
             M.append(revealSecret(message.cr, self.contract_table[message.cr].secret, message.endTime,
-                                  message.signed_endTime, producer, self, message.locked_transfer_endtime))
+                                  message.signed_endTime, producer, self, message.locked_transfer_endtime, start_time))
             if self.line - initiator.line == 1 or self.line - initiator.line == -1:
+                contract_delay = (message.startTime - start_time) / time_meaningful_constant
+                if final_incentive == 0:
+                    incentive = 0
+                else:
+                    # print("test", self.contract_table[message.cr].selected_index, len(self.contract_table[message.cr].contract_bundle[consumer]["Incentive"]))
+                    bundle = self.contract_table[message.cr].contract_bundle[self.contract_table[message.cr].consumer]
+                    for i in range(len(bundle["Delay"]) - 1, -1, -1):
+                        # print("i", bundle["Delay"][i] / contract_meaningful_delay_constant)
+                        # print("test",final_delay / weight)
+                        if bundle["Delay"][i] / contract_meaningful_delay_constant >= contract_delay / weight:
+                            incentive = bundle["Incentive"][i][0] / contract_meaningful_incentive_constant
+                            break
+
                 self.experiment_result.h1_contract_bundle.append(self.contract_table[message.cr].receive_contract_bundle[producer])
                 self.experiment_result.h2_contract_bundle.append(self.contract_table[message.cr].contract_bundle[message.consumer])
-
                 min=0
                 result_count = 200
                 if r >= min and len(self.experiment_result.utility) <= result_count:
                     self.get_hub_result(min, r, message.cr, self.name, message.consumer.name,
-                                        final_incentive, final_delay, result_count, Omega, Omega_prime, message.consumer)
+                                        final_incentive, final_delay, result_count, Omega, Omega_prime, message.consumer, incentive, contract_delay, weight)
             return M
         else:
-            incentive = 0
-            weight = contract_meaningful_delay_constant / payGo_contract_meaningful_delay_constant
+            contract_delay = (message.startTime - start_time) / time_meaningful_constant
 
-            if final_incentive == 0 :
+            if final_incentive == 0:
                 incentive = 0
-            else :
+            else:
                 # print("test", self.contract_table[message.cr].selected_index, len(self.contract_table[message.cr].contract_bundle[consumer]["Incentive"]))
                 bundle = self.contract_table[message.cr].contract_bundle[self.contract_table[message.cr].consumer]
-                for i in range(len(bundle["Delay"])-1, -1, -1) :
+                for i in range(len(bundle["Delay"]) - 1, -1, -1):
                     # print("i", bundle["Delay"][i] / contract_meaningful_delay_constant)
                     # print("test",final_delay / weight)
-                    if bundle["Delay"][i] / contract_meaningful_delay_constant >= final_delay / weight :
-                        incentive = round(bundle["Incentive"][i][0] / contract_meaningful_incentive_constant, 3)
+                    if bundle["Delay"][i] / contract_meaningful_delay_constant >= contract_delay / weight:
+                        incentive = bundle["Incentive"][i][0] / contract_meaningful_incentive_constant
                         break
+
                 # if self.name == "A" :
                 #     print("tset finaldelay", final_delay)
                 #     print("tset weight", weight)
@@ -800,24 +809,28 @@ class Node:
 
             min = 0
             result_count = 200
-            turningPoint = 50
+            turningPoint = 0
 
             temp = self.experiment_result.protocol_time[r]["lockTransfer"]
             self.experiment_result.protocol_time[r]["lockTransfer"] = message.locked_transfer_endtime - temp
             if r >= min and len(self.experiment_result.delay) <= result_count:
                 if r == turningPoint :
                     self.experiment_result.turningPoint = time.time()
-                a= self.get_result(r, message.cr, incentive, final_delay, endTime,
-                                message.locked_transfer_endtime, result_count, Omega, Omega_prime, weight)
+                a= self.get_result(r, message.cr, final_incentive, final_delay, endTime,
+                                message.locked_transfer_endtime, result_count, Omega, Omega_prime, incentive, contract_delay, weight)
 
             return M
 
-    def get_result(self,round, cr, final_incentive, final_delay, endTime, locked_transfer_endtime, result_count, Omega,Omega_prime, weight):
+    def get_result(self,round, cr, final_incentive, final_delay, endTime, locked_transfer_endtime, result_count, Omega,Omega_prime,
+                   personal_incentive, personal_delay, weight):
         # final_delay = (message.endTie - self.contract_table[message.cr].startTime) / time_meaningful_constant
         # print("incentive", final_incentive)
         # print("delay", final_delay)
         # print("weight", weight)
-        utility = contract_bundle(self.address).get_producer_utility(final_incentive, final_delay / weight,Omega)
+        utility = contract_bundle(self.address).get_producer_utility(final_incentive, final_delay ,Omega)
+        personal_utility = contract_bundle(self.address).get_producer_utility(personal_incentive, personal_delay / weight,Omega)
+
+        # print("uti", utility)
         # if utility < 0 :
         #     print("selected index : ", self.contract_table[cr].selected_index)
         #     print("receive bundle : ", self.contract_table[cr].contract_bundle[self.contract_table[cr].consumer])
@@ -831,7 +844,9 @@ class Node:
         self.experiment_result.delay.append(endTime - self.contract_table[cr].payment_startTime)
         self.experiment_result.contract_delay.append(final_delay)
         self.experiment_result.incentive.append(final_incentive)
+        self.experiment_result.personal_incentive.append(personal_incentive)
         self.experiment_result.utility.append(utility)
+        self.experiment_result.personal_utility.append(personal_utility)
         self.experiment_result.payment_endTime.append(time.time())
         print("{} : accumulate round {}".format(self.name, len(self.experiment_result.delay)))
         if len(self.experiment_result.delay) == result_count:
@@ -860,8 +875,8 @@ class Node:
         sheet1.cell(row=1, column=2).value = "Conditional payment"
         sheet1.cell(row=1, column=3).value = "incentive"
         sheet1.cell(row=1, column=4).value = "Utility"
-        sheet1.cell(row=1, column=5).value = "boundary(h1)"
-        sheet1.cell(row=1, column=6).value = "boundary(h2)"
+        sheet1.cell(row=1, column=5).value = "p_incentive"
+        sheet1.cell(row=1, column=6).value = "p_Utility"
         sheet1.cell(row=1, column=7).value = "capacity(h1)(after selection)"
         sheet1.cell(row=1, column=8).value = "capacity(h2)(after selection)"
         sheet1.cell(row=1, column=9).value = "balacnce(h1)"
@@ -899,6 +914,8 @@ class Node:
             sheet1.cell(row=row_index, column=2).value = node.experiment_result.contract_delay[index]
             sheet1.cell(row=row_index, column=3).value = node.experiment_result.incentive[index]
             sheet1.cell(row=row_index, column=4).value = node.experiment_result.utility[index]
+            sheet1.cell(row=row_index, column=5).value = node.experiment_result.personal_incentive[index]
+            sheet1.cell(row=row_index, column=6).value = node.experiment_result.personal_utility[index]
             sheet1.cell(row=row_index, column=16).value = node.experiment_result.payment_endTime[index] - node.experiment_result.payGo_startTime
             sheet1.cell(row=row_index, column=13).value = node.experiment_result.protocol_time[complete_round]["propose"]
             sheet1.cell(row=row_index, column=14).value = node.experiment_result.protocol_time[complete_round]["select"]
@@ -930,8 +947,8 @@ class Node:
                     interval = -1
 
                 for i in range(st, dt, interval) :
-                    sheet1.cell(row=row_index, column=k).value = \
-                        node.experiment_result.contract_boundary[complete_round][i]
+                    # sheet1.cell(row=row_index, column=k).value = \
+                    #     node.experiment_result.contract_boundary[complete_round][i]
                     sheet1.cell(row=row_index, column=k + 2).value = \
                         node.experiment_result.capacity[complete_round][i]
                     sheet1.cell(row=row_index, column=k+4).value = \
@@ -994,8 +1011,10 @@ class Node:
 
         wb.save(filename=file_name)
 
-    def get_hub_result(self, min, round, cr, hub1, hub2, final_incentive, final_delay, result_count, Omega, Omega_prime, partner):
-        utility = contract_bundle(self.address).get_producer_utility(final_incentive, final_delay,Omega)
+    def get_hub_result(self, min, round, cr, hub1, hub2, final_incentive, final_delay, result_count, Omega, Omega_prime, partner,
+                       personal_incentive,personal_delay,  weight):
+        utility = contract_bundle(self.address).get_producer_utility(final_incentive, final_delay, Omega)
+        personal_utility = contract_bundle(self.address).get_producer_utility(personal_incentive, personal_delay / weight, Omega)
         if final_incentive == 0 :
             self.experiment_result.zero_incentive +=1
 
@@ -1005,6 +1024,8 @@ class Node:
         self.experiment_result.contract_delay.append(final_delay)
         self.experiment_result.incentive.append(final_incentive)
         self.experiment_result.utility.append(utility)
+        self.experiment_result.personal_incentive.append(personal_incentive)
+        self.experiment_result.personal_utility.append(personal_utility)
 
         if len(self.experiment_result.utility) == result_count:
             self.experiment_result.complete = True
@@ -1026,8 +1047,10 @@ class Node:
         sheet1.cell(row=1, column=5).value = "incentive"
         sheet1.cell(row=1, column=6).value = "zero_incentive"
         sheet1.cell(row=1, column=7).value = "utility"
-        sheet1.cell(row=1, column=8).value = "h1_contract_bundle"
-        sheet1.cell(row=1, column=9).value = "h2_contract_bundle"
+        sheet1.cell(row=1, column=8).value = "p_incentive"
+        sheet1.cell(row=1, column=9).value = "p_utility"
+        sheet1.cell(row=1, column=10).value = "h1_contract_bundle"
+        sheet1.cell(row=1, column=11).value = "h2_contract_bundle"
 
         for row_index in range(2, len(node.experiment_result.contract_delay) + 2):
             index = row_index - 2
@@ -1035,7 +1058,10 @@ class Node:
             sheet1.cell(row=row_index, column=2).value = node.experiment_result.hub2[index]
             sheet1.cell(row=row_index, column=3).value = node.experiment_result.contract_delay[index]
             sheet1.cell(row=row_index, column=5).value = node.experiment_result.incentive[index]
-            sheet1.cell(row=row_index, column=7).value = node.experiment_result.incentive[index]
+            sheet1.cell(row=row_index, column=7).value = node.experiment_result.utility[index]
+            sheet1.cell(row=row_index, column=8).value = node.experiment_result.personal_incentive[index]
+            sheet1.cell(row=row_index, column=9).value = node.experiment_result.personal_utility[index]
+
 
             contract1 = ""
             contract2 = ""
@@ -1047,8 +1073,8 @@ class Node:
                 contract2 += "(" + str(node.experiment_result.h2_contract_bundle[index]["Incentive"][i][0] / contract_meaningful_incentive_constant) + ", " + \
                              str(node.experiment_result.h2_contract_bundle[index]["Delay"][i] / contract_meaningful_delay_constant) + "), "
 
-            sheet1.cell(row=row_index, column=8).value = contract1
-            sheet1.cell(row=row_index, column=9).value = contract2
+            sheet1.cell(row=row_index, column=10).value = contract1
+            sheet1.cell(row=row_index, column=11).value = contract2
 
         sheet1.cell(row=2, column=6).value = node.experiment_result.zero_incentive
 

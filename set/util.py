@@ -153,9 +153,10 @@ def payGo(initiator, target, amount, Omega, Omega_prime, round, total_round, sta
             elif (message.id == "fail"):
                 print("payment fail : {}".format(message.content))
         message_bundle = result
-
+        # time.sleep(0.001)
         if len(message_bundle) == 0:
             break
+
 
 
 

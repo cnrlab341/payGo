@@ -1,5 +1,5 @@
-a = [1,2,4]
-for i in range(len(a)) :
-    a[i]  = a[i] *2
-print(a)
+import random
 
+a = [1,2,3]
+choice = random.choice(a)
+print(a, choice)

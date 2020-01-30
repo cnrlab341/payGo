@@ -201,7 +201,7 @@ class resSecret :
         self.secret = secret
 
 class revealSecret :
-    def __init__(self, cr, secret, endTime, signed_endTime, producer, consumer, locked_transfer_endtime):
+    def __init__(self, cr, secret, endTime, signed_endTime, producer, consumer, locked_transfer_endtime, start_time):
         self.id = "revealSecret"
         self.cr = cr
         self.secret = secret
@@ -210,6 +210,7 @@ class revealSecret :
         self.producer = producer
         self.consumer = consumer
         self.locked_transfer_endtime = locked_transfer_endtime
+        self.startTime = start_time
 
 class resRevealSecret :
     def __init__(self, cr, sender, recipient, BP, finalAmount):

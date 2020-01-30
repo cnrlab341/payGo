@@ -7,7 +7,7 @@ Theta = 40
 # Omega = 3
 # Omega_prime = 4
 x0 = [0.1]          # init
-bnds = [(0.0,40.0)] # bound
+bnds = [(0.0,10.0)] # bound
 
 # RTT control Parameter
 class RTT :
@@ -260,13 +260,18 @@ class contract_bundle :
 # for i in range(40) :
 #     test[i]  = A_model[i]
 # start = time.time()
-# a = contract_bundle("asd").execute(test,1, 3.5)
+# a = contract_bundle("asd").execute(test,1, 3)
 # end = time.time()
 # print(end-start)
-# print("len", len(a["Incentive"]))
+# # print("len", (a["Delay"]))
 # print(a)
-# print(a["Incentive"])
-
+# temp_d = []
+# temp_i = []
+# for i in range(len(a["Delay"])) :
+#     temp_d.append(a["Delay"][i]/25)
+#     temp_i.append(a["Incentive"][i][0]/100)
+# print(temp_d)
+# print(temp_i)
 # for i in range(len(a["Incentive"])) :
 #     incentive = a["Incentive"][i] / contract_meaningful_incentive_constant
 #     delay = a["Delay"][i] / contract_meaningful_delay_constant
