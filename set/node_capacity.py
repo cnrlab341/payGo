@@ -455,9 +455,11 @@ class Node:
         consumer = table.consumer
         result_incentive = (table.selected_contract[0] + table.additional_contract[0])
         if message.type == "contractRejectDown" :
-            self.partner[self.contract_table[message.cr].producer].update_average_capacity(-(table.amount + result_incentive), decrese_weight)
-            self.partner[consumer].update_average_capacity(table.amount + result_incentive, decrese_weight)
+            self.partner[message.requester].update_average_capacity(-(table.amount + result_incentive), decrese_weight)
             if consumer != table.target :
+                self.partner[consumer].update_average_capacity(table.amount + result_incentive, decrese_weight)
+
+            if self != table.target :
                 M.append(self.send_contract_reject(message.cr, consumer, "contractRejectDown"))
 
         elif message.type == "contractRejectUp" :
@@ -591,11 +593,12 @@ class Node:
                     (int(new_time * time_meaningful_constant) - pending_payment[cr][2]) / time_meaningful_constant + 0.008  :
                 print("[{},{}] onchain access".format(initiator.name, r))
                 self.partner[producer].pop_pending_payment(cr)
-                self.partner[producer].fail_payment(cr, self.contract_table[cr].amount + result_incentive, 1)
-                self.partner[recipient].update_average_capacity(self.contract_table[cr].amount + result_incentive, decrese_weight)
-                self.partner[recipient].half_moving_average(initiator.name, self.name, recipient.name)
-                self.partner[producer].update_average_capacity(-(self.contract_table[cr].amount + result_incentive), decrese_weight)
-                message = "cancel"
+                # self.partner[producer].fail_payment(cr, self.contract_table[cr].amount + result_incentive, 1)
+                # self.partner[recipient].update_average_capacity(self.contract_table[cr].amount + result_incentive, decrese_weight)
+                # self.partner[recipient].half_moving_average(initiator.name, self.name, recipient.name)
+                # self.partner[producer].update_average_capacity(-(self.contract_table[cr].amount + result_incentive), decrese_weight)
+                # message = "cancel"
+                message = fail("onchainAccess")
                 initiator.experiment_result.onchain_access +=1
                 initiator.experiment_result.onchain_access_node[r] = self.name
                 initiator.experiment_result.onchain_access_capacity[r] = initiator.experiment_result.capacity[r][self.name]
@@ -619,9 +622,7 @@ class Node:
         # [0]:locked_amount [1]:selected_delay [2]:startTime
         # not initiator
         M = []
-        if self.contract_table[cr].consumer != self.contract_table[cr].target:
-            M.append(self.send_contract_reject(cr, self.contract_table[cr].consumer, "contractRejectDown"))
-
+        M.append(self.send_contract_reject(cr, self.contract_table[cr].consumer, "contractRejectDown"))
         M.append(self.send_contract_reject(cr, self.contract_table[cr].producer, "contractRejectUp"))
 
         return M

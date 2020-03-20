@@ -260,7 +260,7 @@ class contract_bundle :
 # for i in range(40) :
 #     test[i]  = A_model[i]
 # start = time.time()
-# a = contract_bundle("asd").execute(test,1, 3)
+# a = contract_bundle("asd").execute(test,1, 3.5)
 # end = time.time()
 # print(end-start)
 # # print("len", (a["Delay"]))

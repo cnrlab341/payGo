@@ -314,7 +314,7 @@ class ChannelState():
 
     def half_moving_average(self,a,b,c):
         # print("half_moving_average", a,b,c,self.moving_average_capacity[self.i], self.moving_average_capacity[self.i]/2)
-        self.moving_average_capacity[self.i] = self.moving_average_capacity[self.i] / 2
+        self.moving_average_capacity[self.i] = self.moving_average_capacity[self.i]
 
     def create_BP(self, w3, cr, initiator, target, secrethash, amount, expiration, s_contract, a_contract, start_time):
         # self.lock.acquire()
