@@ -1,11 +1,9 @@
 from scipy import optimize
-import math, time
+import math
 from settingParameter import contract_meaningful_incentive_constant, contract_meaningful_delay_constant
 
 # contract theory Parameter
 Theta = 40
-# Omega = 3
-# Omega_prime = 4
 x0 = [0.1]          # init
 bnds = [(0.0,10.0)] # bound
 
@@ -17,8 +15,6 @@ class RTT :
 
     def update_PTT(self, name, newRTT):
         self.accumulate_RTT = self.accumulate_RTT * self.weight + newRTT * (1-self.weight)
-        # self.previous_RTT = newRTT
-        # print("accumulate_time update between {} : {}".format(name, self.accumulate_RTT))
 
     def get_accumulate_time(self):
         return self.accumulate_RTT
@@ -51,15 +47,10 @@ class contract_bundle :
         self.N = 0              # total Theta number
         self.Omega_prime = 0    # unit resource cost for hub nodes
 
-        # self.set_Theta_number(Theta)
-
 
     def set_Theta_number(self, n, Omega, Omega_prime):
         self.set_Omega(Omega)
         self.set_Omega_prime(Omega_prime)
-        # self.N = n
-        # self.Theta = [i for i in range(n+1)]
-        # self.P = [1/n for _ in range(n+1)]
         self.N = len(n)-1
         self.Theta = [i for i in n.keys()]
         self.P = [n[i] for i in n.keys()]
@@ -68,12 +59,8 @@ class contract_bundle :
     def set_Omega(self, Omega):
         self.Omega = Omega
 
-        # self.print_Omega()
-
     def set_Omega_prime(self, Omega_prime):
         self.Omega_prime = Omega_prime
-
-        # self.print_Omega_prime()
 
     def print_N(self):
         print("{}'s N value : {}".format(self.creator, self.N))
@@ -159,12 +146,9 @@ class contract_bundle :
         for i in range(1, self.N+1) :
             temp = self.set_client_utility_i(i)
             result = optimize.minimize(temp, x0, method="TNC", bounds=bnds, options={'maxiter': 1000})
-            # print("result.fun", result.fun)
-            # print("result.x bool", result.x)
             self.Client_U_I.append(result.fun)
             self.Incentive.append(result.x)
-        # print("result len", len(result.x))
-        # self.state_print("incentive", self.Incentive)
+
         self.set_Delta()
 
 
@@ -248,32 +232,3 @@ class contract_bundle :
             bundle["Incentive"][i] = (bundle["Delay"][i] - b) / a
 
         return bundle
-
-# test = {}
-# A_model = []
-# for i in range(40) :
-#     if i < 39 :
-#         A_model.append(1)
-#     else :
-#         A_model.append(1)
-#
-# for i in range(40) :
-#     test[i]  = A_model[i]
-# start = time.time()
-# a = contract_bundle("asd").execute(test,1, 3.5)
-# end = time.time()
-# print(end-start)
-# # print("len", (a["Delay"]))
-# print(a)
-# temp_d = []
-# temp_i = []
-# for i in range(len(a["Delay"])) :
-#     temp_d.append(a["Delay"][i]/25)
-#     temp_i.append(a["Incentive"][i][0]/100)
-# print(temp_d)
-# print(temp_i)
-# for i in range(len(a["Incentive"])) :
-#     incentive = a["Incentive"][i] / contract_meaningful_incentive_constant
-#     delay = a["Delay"][i] / contract_meaningful_delay_constant
-#     test =contract_bundle("asd").get_producer_utility(incentive, delay, 2)
-#     print(test)

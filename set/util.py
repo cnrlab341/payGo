@@ -1,22 +1,6 @@
 import solcx
 import time
-import asyncio
-import threading
 import os
-from multiprocessing.pool import ThreadPool
-# def border() :
-#     print()
-#     print("=====================================================================================")
-#     print()
-#
-# def print_status(name, st, dt, *args) :
-#     content = ""
-#     for i in range(len(args)) :
-#         temp = str(args[i]) + ". "
-#         content += temp
-#     print("{} : {}".format(name, content))
-#     if (st==dt) :
-#         border()
 
 # decrypt keystore file and return account
 def account_from_key(w3, key_path, passphrase):
@@ -100,32 +84,16 @@ def wait_event(w3, contract, tx_hash, event_name):
     tx_receipt = w3.eth.waitForTransactionReceipt(tx_hash)
     return get_event(w3, contract, tx_hash, event_name)
 
-
-# def payGo(initiator, target, amount):
-#     for partner in initiator.partner.keys():
-#         th = Thread(target=execute_PayGo, args=(initiator, partner, target, amount))
-#         th.start()
-# def payGo_pending(initiator, target, amount, start_time, Omega, Omega_prime, round, total_round, lock) :
-#     global complete_propose
-#     if not complete_propose[initiator.name] :
-#         return True
-#     else :
-#         pool = ThreadPool(processes=1)
-#         pool.apply_async(payGo_inner, (initiator, target, amount, start_time, Omega, Omega_prime, round, total_round, lock))
-#         return False
-
 def payGo(initiator, target, amount, Omega, Omega_prime, round, total_round, start, interval) :
     start_time = time.time()
     message_bundle = []
     secret = os.urandom(32)
     payment_state = "contractPropose"
-    # proposal complete, startTime
     initiator.experiment_result.proposal_complete[round] = ["proposal", start_time]
     message_bundle += initiator.init_contract_propose(round, initiator, target, amount, secret, start_time, Omega,
                                                       Omega_prime, payment_state, start, interval)
     while True:
         result = []
-        # print("[{}] type : {}".format(round, message_bundle[0].id))
         for message in message_bundle:
             if (message.id == "contractPropose"):
                 count = check_propose_equal_direction(message_bundle, message.consumer)
@@ -153,12 +121,8 @@ def payGo(initiator, target, amount, Omega, Omega_prime, round, total_round, sta
             elif (message.id == "fail"):
                 print("payment fail : {}".format(message.content))
         message_bundle = result
-        # time.sleep(0.001)
         if len(message_bundle) == 0:
             break
-
-
-
 
 def check_select_equal_direction(message_bundle, partner) :
     count = 0
@@ -175,32 +139,31 @@ def check_propose_equal_direction(message_bundle, partner) :
     return count
 
 
+# init linear channelState
+# (sk, i, contract, addrs, channel_identifier, secret_registry_contract)
+def init_linear_channel_state(ChannelState, account, token_network_contract, channel, channel_deposit, secret_registry_contract) :
+    channel_state = {}
+    k = 0
+    for i in range(len(channel)) :
+        deposit = channel_deposit[i][2], channel_deposit[i+1][2]
+        channel_state[channel[i][0]] = [
+            ChannelState(account[k].privateKey, 0, token_network_contract, [account[k].address, account[k + 1].address], deposit, channel[i][0], secret_registry_contract),
+            ChannelState(account[k+1].privateKey, 1, token_network_contract, [account[k].address, account[k + 1].address], deposit, channel[i][0], secret_registry_contract)]
 
-# # init linear channelState
-# # (sk, i, contract, addrs, channel_identifier, secret_registry_contract)
-# def init_linear_channel_state(ChannelState, account, token_network_contract, channel, channel_deposit, secret_registry_contract) :
-#     channel_state = {}
-#     k = 0
-#     for i in range(len(channel)) :
-#         deposit = channel_deposit[i][2], channel_deposit[i+1][2]
-#         channel_state[channel[i][0]] = [
-#             ChannelState(account[k].privateKey, 0, token_network_contract, [account[k].address, account[k + 1].address], deposit, channel[i][0], secret_registry_contract),
-#             ChannelState(account[k+1].privateKey, 1, token_network_contract, [account[k].address, account[k + 1].address], deposit, channel[i][0], secret_registry_contract)]
-#
-#         # round 0 create
-#         # completeRound(channel_state[channel[i]], 0, 0, 0, 0, 0)
-#         k +=1
-#
-#     return channel_state
-#
-# # init linear node
-# def init_linear_node(Node, account, channel_state):
-#     node_channel_state = [list() for _ in account]
-#     k = 0
-#     for i in channel_state :
-#         node_channel_state[k].append(channel_state[i][0])
-#         node_channel_state[k+1].append(channel_state[i][1])
-#         k +=1
-#
-#     return [Node(roles) for roles in node_channel_state]
-#
+        # round 0 create
+        # completeRound(channel_state[channel[i]], 0, 0, 0, 0, 0)
+        k +=1
+
+    return channel_state
+
+# init linear node
+def init_linear_node(Node, account, channel_state):
+    node_channel_state = [list() for _ in account]
+    k = 0
+    for i in channel_state :
+        node_channel_state[k].append(channel_state[i][0])
+        node_channel_state[k+1].append(channel_state[i][1])
+        k +=1
+
+    return [Node(roles) for roles in node_channel_state]
+

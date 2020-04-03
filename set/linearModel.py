@@ -1,8 +1,9 @@
 from web3 import Web3
 
-from set.util import print_status, account_from_key, token_transfer, init_linear_channel_state, init_linear_node
+from set.util import account_from_key, token_transfer, init_linear_channel_state, init_linear_node
 from set.contract import deploy_secret_registry, deploy_token_network_registry, mint, create_ERC20Token_network, ERC20_transfer, open_channel, deploy_token, set_initial_deposit
 from set.channelState import ChannelState
+from set.node import Node
 from time import sleep
 import set.key as key
 from set.algorism import contract_bundle
@@ -16,7 +17,6 @@ account = []
 key_path, key_passphrase = key.get_keys()
 for i in range(p.node_count) :
     account.append(account_from_key(w3, key_path[i], key_passphrase[i]))
-print_status("account", 0, 0, account)
 # print('account1', account[0].address)
 # print('account1', account[0].privateKey)
 # print('account2', account[1].address)
@@ -32,43 +32,26 @@ secret_registry_contract = deploy_secret_registry(w3, account[0])
 token_contract = deploy_token(w3, account[0])
 token_network_registry_contract = deploy_token_network_registry(w3, account[0],
                                     secret_registry_contract.address, p.chain_id, p.settlement_timeout_min, p.settlement_timeout_max, p.max_token_networks)
-print_status("secret_registry_contract", 0, 2, secret_registry_contract.address)
-print_status("token_contract", 1, 2, token_contract.address)
-print_status("token_network_registry_contract", 2, 2, token_network_registry_contract.address)
 
 # mint token contract
 to, amount = mint(w3, account[0], token_contract, account[0].address, p.mint_ERC20)
-print_status("mint result[to , amount]", 0, 0, to, amount)
 
 # Create TokenNetwork contract
 token_network_contract = create_ERC20Token_network(w3, account[0], token_network_registry_contract, token_contract.address, p.channel_participant_deposit_limit, p.token_network_deposit_limit)
-print_status("token_network_contract", 0, 0, token_network_contract)
+
 
 # distribute token
 result = {}
 for i in range(p.node_count-1) :
     result[i] = ERC20_transfer(w3, account[0], token_contract, account[i+1].address, int(p.mint_ERC20/p.node_count))
-    print_status("distribute Token[recipient, amount]", i, p.node_count-2, result[i][0], result[i][1])
-
-
-# ----------------------------------------------
-# 여기서 수정 필요
-# ----------------------------------------------
-
 
 # openChannel
 # open_channel(w3, account, contract, participant1, participant2, settle_time = min)
-# 2,4,5 번째 인자만 수정하면 된다.
-# 2 : smartcontract을 호출할 노드
-# 4 : channel을 열 node 1 address
-# 5 : channel을 열 node 2 address
 channel = {}
 for i in range(p.node_count-1) :
     channel[i] = open_channel(w3, account[i], token_network_contract, account[i].address, account[i+1].address, p.settlement_timeout_min)
-    print_status("open channel[channel_identifier, participant1, participant2, settle_timeout]", i, p.node_count-2, channel[i][0], channel[i][1], channel[i][2], channel[i][3])
 
 # set Deposit
-# 마지막 인자에 deposit한 돈을 setting할 수 있다. 지금은 모두 같게 설정
 channel_new_deposit = set_initial_deposit(w3, account, token_network_contract, channel, p.initial_deposit)
 # print_status("channel_new_deposit", 0, 0, channel_new_deposit)
 

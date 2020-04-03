@@ -5,8 +5,8 @@ from message import LockedTransfer_structure, unlockTransfer
 from raiden.utils.signing import pack_data
 from structure import balanceProof
 from algorism import RTT
-from settingParameter import time_meaningful_constant, contract_meaningful_delay_constant
-import threading, time
+from settingParameter import time_meaningful_constant, contract_meaningful_delay_constant, decrese_weight, arise_weight, payGo_contract_meaningful_delay_constant
+import time
 
 class ChannelState():
     def __init__(self, sk, i, tokenNetwork, addrs, deposit, channel_identifier, secret_registry_contract, lock):
@@ -28,19 +28,47 @@ class ChannelState():
         self.chain_id = 337
         self.RTT = RTT()
         self.pending_payment = [{},{}]
-        # self.reserve_payment = [{}, {}]
+        self.reserve_payment = [{}, {}]
         self.wait_confirm = [{},{}]
         self.lock = lock
-        self.queueing_record = [[],[]]
+        self.payment_history = [[],[]]
         self.weight = 0.6
+        self.contract_boundary = [0,0]
 
-    def get_queueing_record(self):
-        return self.queueing_record[self.i]
-
-    def update_queueing_record(self, amount_ration, delay):
+    def get_payment_history(self):
         self.lock.acquire()
         try :
-            self.queueing_record[self.i] = amount_ration, delay
+            temp = self.payment_history[self.i]
+        finally:self.lock.release()
+        return temp
+
+    def get_delay_from_payment_history(self, amount, current_time, Max_delay):
+        payment_history = self.get_payment_history()
+        temp_add = 0
+        delay = 0
+        for i in range(len(payment_history)) :
+            temp_delay = current_time - payment_history[i][1]
+            temp_add += payment_history[i][0]
+            temp_result = self.temp_add_average_capacity(temp_add, arise_weight)
+
+            if temp_result >= amount :
+                delay = temp_delay
+                break
+
+        return delay
+
+    def pop_payment_history(self, index):
+        try:
+            self.payment_history[self.i].pop(index)
+        except :
+            print("pop error")
+
+
+    def update_payment_history(self, amount, time):
+        self.lock.acquire()
+        try :
+            self.payment_history[self.i].insert(0, [amount, time])
+
         finally: self.lock.release()
 
     def get_pending_payment(self):
@@ -51,6 +79,48 @@ class ChannelState():
 
     def pop_pending_payment(self, cr):
         self.pending_payment[self.i].pop(cr)
+
+    def get_pending_payment_count(self):
+        self.lock.acquire()
+        try:
+            reserve = self.pending_payment[self.i]
+        finally:
+            self.lock.release()
+
+        return len(reserve.keys())
+
+    def set_reserve_payment(self, cr, amount):
+        self.lock.acquire()
+        try :
+            self.reserve_payment[self.i][cr] = amount
+        finally:self.lock.release()
+
+    def pop_reserve_payment(self, cr):
+        self.lock.acquire()
+        try :
+            self.reserve_payment[self.i].pop(cr)
+        finally:self.lock.release()
+
+    def get_reserve_payment(self):
+        self.lock.acquire()
+        try :
+            reserve = self.reserve_payment[self.i]
+        finally:self.lock.release()
+
+        amount = 0
+        for cr in reserve:
+                amount += reserve[cr]
+
+        return amount
+
+    def get_reserve_payment_count(self):
+        self.lock.acquire()
+        try:
+            reserve = self.reserve_payment[self.i]
+        finally:
+            self.lock.release()
+
+        return len(reserve.keys())
 
     def set_wait_confirm(self, cr, amount, start_time):
         self.lock.acquire()
@@ -63,17 +133,62 @@ class ChannelState():
         try :
             return self.wait_confirm[self.i]
         finally:self.lock.release()
+
         # if amount > 0 :
+    def pop_wait_confirm(self, cr):
+        self.lock.acquire()
+        try :
+            self.wait_confirm[self.i].pop(cr)
+        finally:self.lock.release()
 
     def get_wait_confirm_count(self):
-        wait_confirm = self.wait_confirm[self.i]
+        wait_confirm = self.get_wait_confirm()
 
         return len(wait_confirm.keys())
 
-    def check_balance(self, amount):
-        # print('deposit :  ', self.deposit[self.i])
-        # reserve_amount = self.get_reserve_amount()
-        # wait_amount = self.get_wait_confirm(RTT)
+    def check_balance(self, amount, current_time, RTT):
+        awit_amount = self.update_awaitAmount(RTT)
+        reserve_amount = self.get_reserve_payment()
+        self.lock.acquire()
+        try :
+            result = self.deposit[self.i] - self.transferred_amount[self.i] + \
+                     self.transferred_amount[1-self.i] - self.locked_amount[self.i] - reserve_amount - awit_amount
+
+            if result >= amount:
+                return True, 0
+            else:
+                # locked_amount, selected_delay, startTime
+                pending_payment_bundle = self.pending_payment[self.i]
+                delay = 0
+                # print("pending_payment", pending_payment)
+                for cr in list(pending_payment_bundle) :
+                    try:
+                        pending_payment = pending_payment_bundle[cr]
+                    except:
+                        print(
+                            "[error 2] item : {}, pending_payment_bundle : {}".format(cr, pending_payment_bundle))
+                        continue
+                    # print("len pending_payment", len(pending_payment))
+                    new_delay =  (pending_payment[1] / contract_meaningful_delay_constant) - \
+                            (current_time - pending_payment[2]) / time_meaningful_constant
+                    # print("new_delay", new_delay, current_time)
+                    if new_delay>= 0 :
+                            delay = delay + new_delay
+                            result = result + pending_payment[0]
+                            if result >= amount :
+                                return True, delay
+                return False, 0
+        finally:
+            self.lock.release()
+
+    def check_capacity(self, amount):
+        if self.get_average_capacity() >= amount :
+            return True
+        else :
+            return False
+
+    def check_balance2(self, amount):
+        a = False
         self.lock.acquire()
         try :
             result = self.deposit[self.i] - self.transferred_amount[self.i] + \
@@ -81,38 +196,51 @@ class ChannelState():
 
             if result >= amount:
                 self.locked_amount[self.i] += amount
-                return True
-            else:
-                return False
+                a = True
         finally:
             self.lock.release()
 
-    def check_average_capacity(self, amount):
-        # self.get_wait_confirm(RTT)
-        result = self.get_average_capacity()
-        if result <= 0: result = 0
-        # print("check_average_capacity :" , result)
+        return a
 
-        if result >= amount: return True
-        else: return False
-
-    def update_average_capacity(self, newPay):
+    def update_average_capacity(self, newPay, weight):
         self.lock.acquire()
         try:
-            temp = self.moving_average_capacity[self.i] * self.weight + \
-                   (self.moving_average_capacity[self.i] + newPay) * (1 - self.weight)
-            if temp <= 0 :
-                self.moving_average_capacity[self.i] = 0
-            else :
-                self.moving_average_capacity[self.i] = temp
+            temp = self.moving_average_capacity[self.i] * weight + \
+                   (self.moving_average_capacity[self.i] + newPay) * (1 - weight)
+            # if temp <= 0 :
+            #     self.moving_average_capacity[self.i] = 0
+            # else :
+            self.moving_average_capacity[self.i] = temp
 
         finally:
             self.lock.release()
+
+    def update_contract_boundary(self, newBoundary):
+        self.lock.acquire()
+        try:
+            if self.contract_boundary[self.i] == 0 :
+                self.contract_boundary[self.i] = newBoundary
+            else :
+                self.contract_boundary[self.i] = self.contract_boundary[self.i] * self.weight + \
+                                                 newBoundary * (1 - self.weight)
+        finally:
+            self.lock.release()
+
+        return self.contract_boundary[self.i]
+
+    def temp_add_average_capacity(self, newPay, weight):
+        self.lock.acquire()
+        try:
+            temp = self.moving_average_capacity[self.i] * weight + \
+                   (self.moving_average_capacity[self.i] + newPay) * (1 - weight)
+        finally:self.lock.release()
+
+        return temp
 
     # 수정 여기부터!
     def update_average_capacity_awaitAmount(self, cr, newPay, startTime):
+        self.update_average_capacity(-newPay, decrese_weight)
         self.set_wait_confirm(cr, newPay, startTime)
-        self.update_average_capacity(-newPay)
 
         return self.get_average_capacity()
 
@@ -123,27 +251,35 @@ class ChannelState():
         finally: self.lock.release()
 
     def update_awaitAmount(self, RTT):
-        wait_confirm = self.wait_confirm[self.i]
-        count = 0
+        wait_confirm = self.get_wait_confirm()
+        amount = 0
         for cr in list(wait_confirm):
             try:
                 if RTT < time.time() - wait_confirm[cr][1]:
-                    self.update_average_capacity(wait_confirm[cr][0])
+                    self.update_average_capacity(wait_confirm[cr][0], decrese_weight)
                     self.wait_confirm[self.i].pop(cr)
-                    count +=1
+                else :
+                    amount += wait_confirm[cr][0]
             except:
                 continue
-        return count
+        return amount
 
     def test_get_balance(self):
-
         self.lock.acquire()
         try :
             result = self.deposit[self.i] - self.transferred_amount[self.i] + \
                      self.transferred_amount[1 - self.i] - self.locked_amount[self.i]
         finally: self.lock.release()
+        return result
 
-        # if result < 0 : self.test()
+    def test_get_balance2(self, RTT):
+        awit_amount = self.update_awaitAmount(RTT)
+        reserve_amount = self.get_reserve_payment()
+        self.lock.acquire()
+        try :
+            result = self.deposit[self.i] - self.transferred_amount[self.i] + \
+                     self.transferred_amount[1 - self.i] - self.locked_amount[self.i] - awit_amount - reserve_amount
+        finally: self.lock.release()
         return result
 
     def test(self):
@@ -158,11 +294,13 @@ class ChannelState():
 
         self.lock.acquire()
         try :
-            # self.moving_average_capacity[self.i] = self.moving_average_capacity[self.i] / 2
             self.locked_amount[i] -= amount
             self.leaves[i].pop(cr)
         finally: self.lock.release()
 
+    def half_moving_average(self,a,b,c):
+        # print("half_moving_average", a,b,c,self.moving_average_capacity[self.i], self.moving_average_capacity[self.i]/2)
+        self.moving_average_capacity[self.i] = self.moving_average_capacity[self.i]
 
     def create_BP(self, w3, cr, initiator, target, secrethash, amount, expiration, s_contract, a_contract, start_time):
         # self.lock.acquire()
@@ -244,13 +382,15 @@ class ChannelState():
         for i in range(len(aux_incentive)) :
             temp = aux_incentive[i], (aux_delay[i] / contract_meaningful_delay_constant)
             contracts.append(temp)
-
+        # print("contract", contracts)
         # if node == initiator:
-        # print("[{}] {} last contract : {}".format(initiator.name, node.name, contracts))
-        for contract in contracts :
-            if contract[1] >= final_delay :
+        count = 0
+        weight = contract_meaningful_delay_constant / payGo_contract_meaningful_delay_constant
+        for contract in contracts:
+            if contract[1] >= final_delay / weight:
                 final_incentive = contract[0]
                 break
+            count +=1
         # print("incentive over contracts ,", contracts)
         # print("final_delay : ", final_delay)
         # print("final_incentive : ", final_incentive)
@@ -306,7 +446,7 @@ class ChannelState():
         BP = balanceProof(message_data, additional_hash, balance_hash, signature['signature'].hex())
         self.BP[self.i] = BP
 
-        return BP, result, final_incentive, final_delay
+        return BP, result, final_incentive, final_delay, count
 
     def locked_BP(self, BP):
         self.lock.acquire()

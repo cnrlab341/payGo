@@ -1,22 +1,16 @@
 from web3 import Web3
-from raiden.utils import sha3
 from set.util import account_from_key, token_transfer, payGo
-import set.contract
-# from set.node import Node
-# from set.node_balance import Node
-from set.node_capacity import Node
-# from set.channelState import ChannelState
-# from set.channelState_balance import ChannelState
-from set.channelState_capacity import ChannelState
+from set.node import Node
+from set.channelState import ChannelState
 import set.key as key
 from set.structure import hub_result, payer_result
 import set.settingParameter as p
 from set.algorism import RTT
-import threading
-import time, os, random
+import time
 from set.message import token_network
 from multiprocessing.pool import ThreadPool
 from multiprocessing import Lock
+
 # geth path setting
 ipc_path = '../gethchain/geth.ipc'
 w3 = Web3(Web3.IPCProvider(ipc_path))
@@ -94,44 +88,18 @@ for i in range(10) :
         simple_create_channel(b[i], c[j], 100000, 100000, lock)
     simple_create_channel(c[i], d, 100000, 100000000, lock)
 
+pool = ThreadPool(processes=1000)
 def flow_payGo(initiator, target, amount, Omega, Omega_prime, interval, stop, round, start) :
-
-    # if weight :
-    #     time_list = [1,3]
-    # for i in range(len(time_list)) :
-    #     time_list[i] = time_list[i] * weight
-    # else :
-    #     time_list = [1,1,1,1,1,1,1,1,1,1]
-    # random.shuffle(time_list)
-    index = 0
     for i in range(round) :
-        pool = ThreadPool(processes=1)
         pool.apply_async(payGo, (initiator, target, amount, Omega, Omega_prime, i, round, start, interval))
-        # time.sleep(time_list[index])
+
         time.sleep(interval)
-        # index +=1
-        # if index == 3 and stop:
-            # random.shuffle(time_list)
-            # time.sleep(1.5)
-            # index = 0
-        # print(index, time_list[index])
+
         if i == round : return 0
-#
-# sensitiy change : check 사항
-# 1. onchain access : aux
-# 2. margin, init value pending delay
-# 3. aux count
-# 4. min probability
-pool1 = ThreadPool(processes=1500)
+
 start = time.time()
-th1_list = pool1.apply_async(flow_payGo, (a, d, 80000, 1,4,2,True, 1000, start))
-# time.sleep(1)
-th_list = pool1 .apply_async(flow_payGo, (d, a,80000, 1,4,3,False, 1000, start))
+th1_list = pool.apply_async(flow_payGo, (a, d, 80000, 1,4,2,True, 1000, start))
+
+th_list = pool .apply_async(flow_payGo, (d, a,80000, 1,4,3,False, 1000, start))
 th1_list.get()
-# 61600 534,40, 267
-# 2.3, 2,1.5,1
-# n = 1
-# for i in range(n) :
-    # payGo(a,d,7000,1,4,i,n,0,1)
-#     payGo(d,a,7000,1,3,i,n,0,1)
-#
+
