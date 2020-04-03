@@ -4,7 +4,12 @@ Payment Channel Networks (PCN) emerges as a most promising offchain solution for
 
 PayGo routing protocol not only discovers a feasible path, but derives optimal incentive for the PSPs using contract theory. Furthermore, the payGo makes the PSP have a contract with a counterparty to grantee payment latency and throughput with penalty. 
 
-This git repo implements PCN of linear model. 
+This git repo provides a implementation of PCN. and (simulation.py) implements a P2P topology.  
 
 <img src="https://user-images.githubusercontent.com/35050199/78328119-572a2200-75b9-11ea-8060-431963dd0821.png" width="30%"></img>
+
+
+
+
+
 
