@@ -6,5 +6,7 @@ PayGo routing protocol not only discovers a feasible path, but derives optimal i
 
 This git repo implements PCN of linear model. 
 
-[fig_simulTopo (1).pdf](https://github.com/cnrlab341/payGo/files/4425185/fig_simulTopo.1.pdf)
+<div>
 
+<img src="https://github.com/cnrlab341/payGo/files/4425177/fig_simulTopo.1.pdf">
+</div>
