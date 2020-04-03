@@ -6,5 +6,5 @@ PayGo routing protocol not only discovers a feasible path, but derives optimal i
 
 This git repo implements PCN of linear model. 
 
-<img src="https://user-images.githubusercontent.com/35050199/78328119-572a2200-75b9-11ea-8060-431963dd0821.png" width="90%"></img>
+<img src="https://user-images.githubusercontent.com/35050199/78328119-572a2200-75b9-11ea-8060-431963dd0821.png" width="50%"></img>
 
