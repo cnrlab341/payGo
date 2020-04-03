@@ -9,16 +9,15 @@ This git repo provides a implementation of PCN. and (simulation.py) implements a
 <img src="https://user-images.githubusercontent.com/35050199/78328119-572a2200-75b9-11ea-8060-431963dd0821.png" width="30%"></img>
 
 # Contents
-
 <ul>
-  <li>algorithm.py : implementation the contract theory</li>
-  <li>contract.py : interconnecting with blockchain</li>
-  <li>key.py : account for blockchain</li>
-  <li>channelState.py : state of the two nodes participating in the payemnt channel</li>
+  <li>algorithm.py : Implementation the contract theory</li>
+  <li>contract.py : Interconnecting with blockchain</li>
+  <li>key.py : Account for blockchain</li>
+  <li>channelState.py : State of the two nodes participating in the payemnt channel</li>
   <li>message.py : PayGo message structure</li>
-  <li>node.py : </li>
-  <li>settingParameter.py : </li>
-  <li>structure.py</li>
+  <li>node.py : Implementation the payGo routing protocol</li>
+  <li>settingParameter.py : Parameter used for simulation</li>
+  <li>structure.py : simulation result and pending payment structure</li>
 </ul>
 
 
